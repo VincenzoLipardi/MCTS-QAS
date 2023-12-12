@@ -28,9 +28,9 @@ class Node:
         # Gate set
         self.gate_set = 'continuous'
 
-    def __repr__(self):
+    """def __repr__(self):
         return "State: {}\nParent: {}\nChildren: {} \nNum Visits: {}\nTotal Reward: {}\nisTerminal: {}\nTree Depth: {}".format(
-            self.state, self.parent, self.children, self.visits, self.value, self.isTerminal, self.tree_depth)
+            self.state, self.parent, self.children, self.visits, self.value, self.isTerminal, self.tree_depth)"""
 
     def is_fully_expanded(self, max_branches):
         """
@@ -39,7 +39,7 @@ class Node:
         """
         return len(self.children) >= max_branches
 
-    def define_children(self, max_branches, prob_choice):
+    def define_children(self, max_branches, prob_choice, roll_out=False):
         # Expand the node by adding a new gate to the circuit
 
         if len(self.children) > max_branches:
@@ -49,12 +49,20 @@ class Node:
 
             qc = parent.state.circuit.copy()
             new_qc = parent.state.get_legal_action(GateSet(self.gate_set), max_depth, prob_choice)(qc)
+            while new_qc is None:
+                new_qc = parent.state.get_legal_action(GateSet(self.gate_set), max_depth, prob_choice)(qc)
+
             if isinstance(new_qc, QuantumCircuit):
                 new_state = Circuit(4, 1).building_state(new_qc)
                 new_child = Node(new_state, parent=self)
                 # print('new node added', new_child.state.circuit, '\n whose circuit depth is: ', new_state.circuit.depth())
-                self.children.append(new_child)
+                if not roll_out:
+                    self.children.append(new_child)
                 return new_child
+
+                # It means that he got a non possible action
+
+
             else:
                 # It means that get_legal_actions returned the STOP action, then we define this node as Terminal
                 self.isTerminal = True
@@ -83,6 +91,11 @@ def expand(node, max_branches, prob_choice):
     new_node = node.define_children(max_branches=max_branches, prob_choice=prob_choice)
     return new_node
 
+def rollout(node):
+    new_node = node
+    for i in range(2):
+        new_node = new_node.define_children(max_branches=9999, prob_choice={'a': 70, 'd': 10, 's': 0, 'c': 20, 'p': 0}, roll_out=True)
+    return new_node
 
 def simulate(node, evaluation_function):
     return node.state.evaluation(evaluation_function)
@@ -133,7 +146,8 @@ def mcts(root, budget, max_branches, evaluation_function, verbose=False):
         if verbose:
             print("Tree expanded. Node's depth in the tree: ", current_node.tree_depth)
         # Simulation
-        result = simulate(current_node, evaluation_function)
+        leaf_node = rollout(current_node)
+        result = simulate(leaf_node, evaluation_function)
 
         if verbose:
             print('Simulation result: ', result)
@@ -142,11 +156,13 @@ def mcts(root, budget, max_branches, evaluation_function, verbose=False):
         # print('Current node value:', current_node.value)
 
         epoch_counter += 1
-        if current_node.tree_depth == 2:
-            modify_prob_choice(prob_choiche)
-        """if result > 0.95:
+        if current_node.tree_depth == 5:
+            prob_choiche = modify_prob_choice(prob_choiche)
+        if current_node.tree_depth == 15:
+            prob_choiche = modify_prob_choice(prob_choiche)
+        if result > 0.97:
             best_found = current_node
-            break"""
+            break
     print('Last epoch:', epoch_counter)
     # Return the best
     best_node = root

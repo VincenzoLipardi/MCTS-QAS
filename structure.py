@@ -138,77 +138,74 @@ class GateSet:
         return qc
 
     def swap(self, quantum_circuit):
-        " It removes a gate in a random position and replace it with a new gate randomly chosen"
-        qc = quantum_circuit.copy()
+        """ It removes a gate in a random position and replace it with a new gate randomly chosen """
+
         angle = random.random() * 2 * math.pi
-        if len(qc.data) - 1 > 0:
-            position = random.randint(0, len(qc.data) - 2)
-        gate_to_remove = qc.data[position][0]
-        gate_to_add = random.choice(list(map(get_gate, self.pool)))(angle)
-        while gate_to_add.name == gate_to_remove.name:
-            gate_to_add = random.choice(list(map(get_gate, self.pool)))(angle)
-        if gate_to_add.name == 'cx':
-            n_qubits = 2
+        if len(quantum_circuit.data) > 1:
+            position = random.randint(0, len(quantum_circuit.data) - 2)
         else:
-            n_qubits = 1
-        lenght = len(qc.data[position][1])
-        if lenght == n_qubits:
-            element_to_remove = list(qc.data[position])
-            element_to_remove[0] = gate_to_add
-            element_to_add = tuple(element_to_remove)
-            qc.data[position] = element_to_add
-        elif lenght > n_qubits:
-            element_to_remove = list(qc.data[position])
-            element_to_remove[0] = gate_to_add
-            element_to_remove[1] = [random.choice(qc.data[position][1])]
-            element_to_add = tuple(element_to_remove)
-            qc.data[position] = element_to_add
-        elif lenght < n_qubits:
-            element_to_remove = list(qc.data[position])
-            element_to_remove[0] = gate_to_add
-            qubits_available = []
-            for q in qc.qubits:
-                if [q] != qc.data[position][1]:
-                    qubits_available.append(q)
-            qubits_ = [qc.data[position][1], random.choice(qubits_available)]
-            random.shuffle(qubits_)
-            element_to_remove[1] = qubits_
-            element_to_add = tuple(element_to_remove)
-            qc.data[position] = element_to_add
-        return quantum_circuit
+            return None
 
-    def change(self, quantum_circuit):
-        qc = quantum_circuit.copy()
-        position = random.choice([i for i in range(len(quantum_circuit.data))])
-        while len(quantum_circuit.data[position][0].params) > 0:
-            position = random.choice([i for i in range(len(quantum_circuit.data))])
-        gate_to_mute = quantum_circuit.data[position][0]
+        gate_to_remove = quantum_circuit.data[position]
+        gate_to_add_str = random.choice(self.pool[1:])
+        gate_to_add = get_gate(gate_to_add_str, angle=angle)
+        n_qubits = len(quantum_circuit.qubits)
+        qr = QuantumRegister(n_qubits, 'v')
+        qc = QuantumCircuit(qr)
 
-        qc.data[position][0].params[0] = gate_to_mute.params[0] + random.uniform(0, 0.2)
+        instructions = []
+        pos = 0
+        two_qubit_gate = 0
+        if gate_to_add_str == 'cx':
+            two_qubit_gate = 1
+        delta = len(gate_to_remove[1]) - 1 - two_qubit_gate     # difference of qubit the new gate is applied to
+        for instruction, qargs, cargs in quantum_circuit:
+            if pos == position:
+                if delta == 1:
+                    qargs = [qargs[0]]
+                if delta == -1:
+                    qargs.append(random.choice(quantum_circuit.qubits))
+                instruction = gate_to_add
 
+            instructions.append((instruction, qargs, cargs))
+            pos += 1
+        qc.data = instructions
         return qc
 
-    def stop(self, quantum_circuit):
+    @staticmethod
+    def change(quantum_circuit):
+        qc = quantum_circuit.copy()
+        n = len(qc.data)
+        position = random.choice([i for i in range(n)])
+        check = 0
+        while len(qc.data[position][0].params) == 0:
+            position = random.choice([i for i in range(n)])
+            check += 1
+            if check > 2*n:
+                return None
+
+        gate_to_change = qc.data[position][0]
+        qc.data[position][0].params[0] = gate_to_change.params[0] + random.uniform(0, 0.2)
+        return qc
+
+    @staticmethod
+    def stop(quantum_circuit):
         return 'stop'
 
 
-def get_gate(gate_str):
+def get_gate(gate_str, angle=None):
     """
     Get the qiskit object representing the specified gate.
     Returns: qiskit object: Qiskit gate object.
     """
 
     if gate_str == 'h':
-        return HGate
+        return HGate()
     elif gate_str == 'cx':
-        return CXGate
+        return CXGate()
     elif gate_str == 'rx':
-        return RXGate
+        return RXGate(theta=angle)
     elif gate_str == 'ry':
-        return RYGate
+        return RYGate(theta=angle)
     elif gate_str == 'rz':
-        return RZGate
-
-
-
-
+        return RZGate(phi=angle)

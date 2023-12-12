@@ -2,7 +2,6 @@ import mcts
 import pandas as pd
 import os.path
 from structure import Circuit
-
 import matplotlib.pyplot as plt
 
 
@@ -52,7 +51,7 @@ def plot_Cost_Func(evaluation_function, max_branches, gate_set, budget):
     color = 'tab:blue'
     ax1.set_xlabel('Tree Depth')
     ax1.set_ylabel('Reward', color=color)
-    ax1.scatter(indices, reward, label='Reward', color='blu')
+    ax1.scatter(indices, reward, label='Reward', color='blue')
     ax1.plot(indices, reward, color=color, linestyle='-', linewidth=2)
     ax1.tick_params(axis='y', labelcolor=color)
 

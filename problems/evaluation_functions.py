@@ -1,7 +1,6 @@
 from problems.oracles.grover import grover
-from problems.vqe import H2 as vqe_1
+from problems.vqe import H2
 from problems.vqls import VQLS
-import numpy as np
 import heapq
 from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister, Aer, transpile
 
@@ -70,16 +69,20 @@ def oracle_function(quantum_circuit, function, x, shots):
 
 def h2(quantum_circuit, ansatz='all', cost=False):
     if cost:
-        return vqe_1().costFunc(params=[0.1], quantum_circuit=quantum_circuit, ansatz=ansatz)
+        return H2().costFunc(params=[0.1], quantum_circuit=quantum_circuit, ansatz=ansatz)
     else:
-        return vqe_1().getReward(params=[0.1], quantum_circuit=quantum_circuit, ansatz=ansatz)
+        return H2().getReward(params=[0.1], quantum_circuit=quantum_circuit, ansatz=ansatz)
 
 
 def vqls_1(quantum_circuit, ansatz='all', cost=False):
 
     # Define the problem A = c_0 I + c_1 X_1 + c_2 X_2 + c_3 Z_3 Z_4
-    problem = VQLS(c=[1, 0.1, 0.1, 0.2])
+    #problem = VQLS(c=[1, 0.1, 0.1, 0.2])
+    problem = VQLS(c=[1, 0.5, 0.4, 0.7])
     if cost:
         return problem.costFunc(params=[0.1], quantum_circuit=quantum_circuit, ansatz=ansatz)
     else:
-        return problem.getReward(params=[0.1], quantum_circuit=quantum_circuit, ansatz=ansatz)
+        return problem.getReward(params=[0.1, 0.2], quantum_circuit=quantum_circuit, ansatz=ansatz)
+
+
+
