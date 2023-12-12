@@ -91,9 +91,9 @@ def expand(node, max_branches, prob_choice):
     new_node = node.define_children(max_branches=max_branches, prob_choice=prob_choice)
     return new_node
 
-def rollout(node):
+def rollout(node, future_steps=2):
     new_node = node
-    for i in range(2):
+    for i in range(future_steps):
         new_node = new_node.define_children(max_branches=9999, prob_choice={'a': 70, 'd': 10, 's': 0, 'c': 20, 'p': 0}, roll_out=True)
     return new_node
 
