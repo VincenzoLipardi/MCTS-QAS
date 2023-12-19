@@ -214,8 +214,3 @@ class VQLS:
         q_probs = np.bincount(samples) / self.n_shots
 
         return q_probs
-
-
-
-# Benchmark
-

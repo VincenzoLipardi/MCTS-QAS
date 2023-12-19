@@ -134,6 +134,8 @@ class GateSet:
         """
         qc = quantum_circuit.copy()
         position = random.randint(0, len(qc.data) - 2)
+        print('data:', qc.data)
+        print('position chosen:', position)
         qc.data.remove(qc.data[position])
         return qc
 

@@ -59,7 +59,6 @@ class Node:
                 if not roll_out:
                     self.children.append(new_child)
                 return new_child
-
             else:
                 # It means that get_legal_actions returned the STOP action, then we define this node as Terminal
                 self.isTerminal = True
@@ -67,7 +66,6 @@ class Node:
     def best_child(self):
         children_with_values = [(child, child.value)
                                 for child in self.children]
-
         return max(children_with_values, key=lambda x: x[1])[0]
 
 
@@ -116,8 +114,7 @@ def modify_prob_choice(dictionary, len_qc, stop_happened=True):
     modified_values = [max(0, v + m) for v, m in zip(values, modifications)]
     if stop_happened:
         modified_values[-1] = 0
-    if len_qc < 4:
-        print(len_qc)
+    if len_qc < 6:
         modified_values[1] = 0
     # Normalize to ensure the sum is still 100
     modified_values = [v / sum(modified_values) * 100 for v in modified_values]
@@ -146,16 +143,21 @@ def mcts(root, budget, max_branches, evaluation_function, roll_out_steps=None, v
         # Expansion
         if not current_node.isTerminal:
             current_node = expand(current_node, max_branches, prob_choice=prob_choiche)
-        if verbose:
-            print("Tree expanded. Node's depth in the tree: ", current_node.tree_depth)
+            if verbose:
+                print("Tree expanded. Node's depth in the tree: ", current_node.tree_depth)
 
         # Simulation
-        if isinstance(roll_out_steps, int):
-            leaf_node = rollout(current_node, steps=roll_out_steps)
-            result = evaluate(leaf_node, evaluation_function)
+        if not current_node.isTerminal:
+            if isinstance(roll_out_steps, int):
+                leaf_node = rollout(current_node, steps=roll_out_steps)
+                result = evaluate(leaf_node, evaluation_function)
+            else:
+                if verbose:
+                    print('No rollout')
+                result = evaluate(current_node, evaluation_function)
         else:
             if verbose:
-                print('No rollout')
+                print('It is a terminal node, evaluation done')
             result = evaluate(current_node, evaluation_function)
         if verbose:
             print('Simulation result: ', result)
