@@ -37,10 +37,11 @@ class H2:
 
         def circuit(parameters):
             # Standard Ansatz for h2 molecule (Hatree-Fock state when parameter =0)
-            assert len(parameters) == 1
+
+            # assert len(parameters) == 1
 
             qml.BasisState(self.hf, wires=self.wires)
-            qml.DoubleExcitation(parameters[0], wires=[0, 1, 2, 3])
+            qml.DoubleExcitation(parameters, wires=[0, 1, 2, 3])
 
         def circuit_input(parameters):
             qml.BasisState(self.hf, wires=self.wires)
@@ -73,7 +74,7 @@ class H2:
         @qml.qnode(self.dev, interface="autograd")
         def cost_fn(parameters):
             if quantum_circuit is None:
-                circuit(parameters, wires=range(self.qubits))
+                circuit(parameters)
             else:
                 circuit_input(parameters)
             return qml.expval(self.hamiltonian)
@@ -82,4 +83,33 @@ class H2:
     def getReward(self, params, quantum_circuit=None, ansatz=''):
         return -self.costFunc(params, quantum_circuit, ansatz)
 
+    def benchmark(self):
+        opt = qml.GradientDescentOptimizer(stepsize=0.4)
+        theta = np.array(0.0, requires_grad=True)
+        # store the values of the cost function
+        energy = [self.costFunc(theta)]
+
+        # store the values of the circuit parameter
+        angle = [theta]
+
+        max_iterations = 100
+        conv_tol = 1e-06
+
+        for n in range(max_iterations):
+            theta, prev_energy = opt.step_and_cost(self.costFunc, theta)
+
+            energy.append(self.costFunc(theta))
+            angle.append(theta)
+
+            conv = np.abs(energy[-1] - prev_energy)
+
+            if n % 2 == 0:
+                print(f"Step = {n},  Energy = {energy[-1]:.8f} Ha")
+
+            if conv <= conv_tol:
+                break
+
+        print("\n" f"Final value of the ground-state energy = {energy[-1]:.8f} Ha")
+        # print("\n" f"Optimal value of the circuit parameter = {angle[-1]:.4f}")
+        return energy
 

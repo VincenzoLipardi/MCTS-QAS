@@ -133,7 +133,7 @@ class GateSet:
         :return: new quantum circuit
         """
         qc = quantum_circuit.copy()
-        position = random.randint(0, len(qc.data) - 1)
+        position = random.randint(0, len(qc.data) - 2)
         qc.data.remove(qc.data[position])
         return qc
 

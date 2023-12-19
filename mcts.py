@@ -60,9 +60,6 @@ class Node:
                     self.children.append(new_child)
                 return new_child
 
-                # It means that he got a non possible action
-
-
             else:
                 # It means that get_legal_actions returned the STOP action, then we define this node as Terminal
                 self.isTerminal = True
@@ -91,13 +88,15 @@ def expand(node, max_branches, prob_choice):
     new_node = node.define_children(max_branches=max_branches, prob_choice=prob_choice)
     return new_node
 
-def rollout(node, future_steps=2):
+
+def rollout(node, steps=2):
     new_node = node
-    for i in range(future_steps):
-        new_node = new_node.define_children(max_branches=9999, prob_choice={'a': 70, 'd': 10, 's': 0, 'c': 20, 'p': 0}, roll_out=True)
+    for i in range(steps):
+        new_node = new_node.define_children(max_branches=9999, prob_choice={'a': 0, 'd': 0, 's': 50, 'c': 50, 'p': 0}, roll_out=True)
     return new_node
 
-def simulate(node, evaluation_function):
+
+def evaluate(node, evaluation_function):
     return node.state.evaluation(evaluation_function)
 
 
@@ -108,7 +107,7 @@ def backpropagate(node, result):
         node = node.parent
 
 
-def modify_prob_choice(dictionary, stop_happened=True):
+def modify_prob_choice(dictionary, len_qc, stop_happened=True):
 
     keys = list(dictionary.keys())
     values = list(dictionary.values())
@@ -117,6 +116,9 @@ def modify_prob_choice(dictionary, stop_happened=True):
     modified_values = [max(0, v + m) for v, m in zip(values, modifications)]
     if stop_happened:
         modified_values[-1] = 0
+    if len_qc < 4:
+        print(len_qc)
+        modified_values[1] = 0
     # Normalize to ensure the sum is still 100
     modified_values = [v / sum(modified_values) * 100 for v in modified_values]
     # Normalize to ensure the sum is still 100
@@ -124,7 +126,7 @@ def modify_prob_choice(dictionary, stop_happened=True):
     return modified_dict
 
 
-def mcts(root, budget, max_branches, evaluation_function, verbose=False):
+def mcts(root, budget, max_branches, evaluation_function, roll_out_steps=None, verbose=False):
     prob_choiche = {'a': 100, 'd': 0, 's': 0, 'c': 0, 'p': 0}
     if verbose:
         print('Root Node: \n', root.state.circuit)
@@ -140,29 +142,31 @@ def mcts(root, budget, max_branches, evaluation_function, verbose=False):
             current_node = select(current_node)
             if verbose:
                 print('Selection done. The selected child is: ', current_node, 'Node tree depth: ', current_node.tree_depth)
+
         # Expansion
         if not current_node.isTerminal:
             current_node = expand(current_node, max_branches, prob_choice=prob_choiche)
         if verbose:
             print("Tree expanded. Node's depth in the tree: ", current_node.tree_depth)
-        # Simulation
-        leaf_node = rollout(current_node)
-        result = simulate(leaf_node, evaluation_function)
 
+        # Simulation
+        if isinstance(roll_out_steps, int):
+            leaf_node = rollout(current_node, steps=roll_out_steps)
+            result = evaluate(leaf_node, evaluation_function)
+        else:
+            if verbose:
+                print('No rollout')
+            result = evaluate(current_node, evaluation_function)
         if verbose:
             print('Simulation result: ', result)
         # Backpropagation
         backpropagate(current_node, result)
-        # print('Current node value:', current_node.value)
-
         epoch_counter += 1
-        if current_node.tree_depth == 5:
-            prob_choiche = modify_prob_choice(prob_choiche)
-        if current_node.tree_depth == 15:
-            prob_choiche = modify_prob_choice(prob_choiche)
-        if result > 0.97:
-            best_found = current_node
-            break
+        n_qubits = len(current_node.state.circuit.qubits)
+        if current_node.tree_depth == n_qubits:
+            prob_choiche = modify_prob_choice(prob_choiche, len_qc=len(current_node.state.circuit.data))
+        if current_node.tree_depth == 2*n_qubits:
+            prob_choiche = modify_prob_choice(prob_choiche, len_qc=len(current_node.state.circuit.data))
     print('Last epoch:', epoch_counter)
     # Return the best
     best_node = root
