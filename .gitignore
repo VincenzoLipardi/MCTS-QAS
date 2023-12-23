@@ -16,7 +16,8 @@ __pycache__/
 *.jif
 *.jfif
 *.jfi
-
+# files
+*.pkl
 # Distribution / packaging
 .Python
 build/
