@@ -4,7 +4,7 @@ from qiskit import QuantumCircuit
 
 
 class Node:
-    def __init__(self, state: Circuit,max_depth, parent=None):
+    def __init__(self, state: Circuit, max_depth, parent=None):
         """
         A node of the tree store a lot of information in order to guide the search
         :param state: Circuit object. This is the quantum circuit stored in the node.
@@ -44,13 +44,9 @@ class Node:
         # Expand the node by adding a new gate to the circuit
 
         parent = self
-
         qc = parent.state.circuit.copy()
-
         new_qc = parent.state.get_legal_action(GateSet(self.gate_set), self.max_depth, prob_choice)(qc)
-
         while new_qc is None:
-
             # It chooses to change parameters, but there are no parametrized gates. Or delete in a very shallow circuit
             new_qc = parent.state.get_legal_action(GateSet(self.gate_set), self.max_depth, prob_choice)(qc)
 
@@ -186,6 +182,3 @@ def nested(iterations, root, budget, max_branches, evaluation_function, verbose)
         root = root.best_child()
     best_child = root.best_child()
     return best_child
-
-
-
