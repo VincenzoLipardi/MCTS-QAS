@@ -9,8 +9,8 @@ from problems.oracles.grover.grover import grover_algo
 from qiskit.visualization import plot_histogram
 
 
-def data(evaluation_function, variable_qubits, ancilla_qubits, gate_set, budget, max_branches, roll_out_steps, iteration, verbose):
-    root = mcts.Node(Circuit(variable_qubits=variable_qubits, ancilla_qubits=ancilla_qubits))
+def data(evaluation_function, variable_qubits, ancilla_qubits, gate_set, budget, max_branches, max_depth, roll_out_steps, iteration, verbose):
+    root = mcts.Node(Circuit(variable_qubits=variable_qubits, ancilla_qubits=ancilla_qubits), max_depth=max_depth)
 
     final_state = mcts.mcts(root, budget=budget, max_branches=max_branches, evaluation_function=evaluation_function, roll_out_steps=roll_out_steps, verbose=verbose)
     if verbose:
@@ -53,7 +53,6 @@ def plot_Cost_Func(evaluation_function, max_branches, gate_set, budget):
     data = get_pkl(evaluation_function, max_branches, gate_set, budget)[2]
     indices = list(range(len(data)))
     cost = list(map(lambda x: evaluation_function(x, cost=True), data))
-    #plt.scatter(indices, cost, label='Cost')
     color = 'tab:blue'
 
     plt.xlabel('Tree Depth')

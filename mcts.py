@@ -1,11 +1,10 @@
 import numpy as np
 from structure import Circuit, GateSet
 from qiskit import QuantumCircuit
-global max_depth
 
 
 class Node:
-    def __init__(self, state: Circuit, parent=None):
+    def __init__(self, state: Circuit,max_depth, parent=None):
         """
         A node of the tree store a lot of information in order to guide the search
         :param state: Circuit object. This is the quantum circuit stored in the node.
@@ -23,6 +22,8 @@ class Node:
         self.visits = 0
         # Value is the total reward. float
         self.value = 0
+        # Maximum quantum circuit depth
+        self.max_depth = max_depth
         # Position of the node in terms of tree depth. integer
         self.tree_depth = 0 if parent is None else parent.tree_depth + 1
         # Gate set
@@ -39,29 +40,30 @@ class Node:
         """
         return len(self.children) >= max_branches
 
-    def define_children(self, max_branches, prob_choice, roll_out=False):
+    def define_children(self, prob_choice, roll_out=False):
         # Expand the node by adding a new gate to the circuit
 
-        if len(self.children) > max_branches:
-            return None
+        parent = self
+
+        qc = parent.state.circuit.copy()
+
+        new_qc = parent.state.get_legal_action(GateSet(self.gate_set), self.max_depth, prob_choice)(qc)
+
+        while new_qc is None:
+
+            # It chooses to change parameters, but there are no parametrized gates. Or delete in a very shallow circuit
+            new_qc = parent.state.get_legal_action(GateSet(self.gate_set), self.max_depth, prob_choice)(qc)
+
+        if isinstance(new_qc, QuantumCircuit):
+            new_state = Circuit(4, 1).building_state(new_qc)
+            new_child = Node(new_state, max_depth=self.max_depth, parent=self)
+            if not roll_out:
+                self.children.append(new_child)
+            return new_child
         else:
-            parent = self
-
-            qc = parent.state.circuit.copy()
-            new_qc = parent.state.get_legal_action(GateSet(self.gate_set), max_depth, prob_choice)(qc)
-            while new_qc is None:
-                new_qc = parent.state.get_legal_action(GateSet(self.gate_set), max_depth, prob_choice)(qc)
-
-            if isinstance(new_qc, QuantumCircuit):
-                new_state = Circuit(4, 1).building_state(new_qc)
-                new_child = Node(new_state, parent=self)
-                # print('new node added', new_child.state.circuit, '\n whose circuit depth is: ', new_state.circuit.depth())
-                if not roll_out:
-                    self.children.append(new_child)
-                return new_child
-            else:
-                # It means that get_legal_actions returned the STOP action, then we define this node as Terminal
-                self.isTerminal = True
+            # It means that get_legal_actions returned the STOP action, then we define this node as Terminal
+            self.isTerminal = True
+            return None
 
     def best_child(self):
         children_with_values = [(child, child.value)
@@ -70,27 +72,24 @@ class Node:
 
 
 def select(node, exploration=1.0):
-    if not node.children:
-        return None
     l = np.log(node.visits)
     children_with_values = [(child, child.value / child.visits +
                              exploration * np.sqrt(l / child.visits))
                             for child in node.children]
 
     selected_child = max(children_with_values, key=lambda x: x[1])[0]
-    # print("Children UCB values: ", children_with_values)
     return selected_child
 
 
-def expand(node, max_branches, prob_choice):
-    new_node = node.define_children(max_branches=max_branches, prob_choice=prob_choice)
+def expand(node, prob_choice):
+    new_node = node.define_children(prob_choice=prob_choice)
     return new_node
 
 
 def rollout(node, steps=2):
     new_node = node
     for i in range(steps):
-        new_node = new_node.define_children(max_branches=9999, prob_choice={'a': 0, 'd': 0, 's': 50, 'c': 50, 'p': 0}, roll_out=True)
+        new_node = new_node.define_children(prob_choice={'a': 25, 'd': 25, 's': 25, 'c': 25, 'p': 0}, roll_out=True)
     return new_node
 
 
@@ -142,7 +141,7 @@ def mcts(root, budget, max_branches, evaluation_function, roll_out_steps=None, v
 
         # Expansion
         if not current_node.isTerminal:
-            current_node = expand(current_node, max_branches, prob_choice=prob_choiche)
+            current_node = expand(current_node, prob_choice=prob_choiche)
             if verbose:
                 print("Tree expanded. Node's depth in the tree: ", current_node.tree_depth)
 
@@ -165,10 +164,9 @@ def mcts(root, budget, max_branches, evaluation_function, roll_out_steps=None, v
         backpropagate(current_node, result)
         epoch_counter += 1
         n_qubits = len(current_node.state.circuit.qubits)
-        if current_node.tree_depth == n_qubits:
-            prob_choiche = modify_prob_choice(prob_choiche, len_qc=len(current_node.state.circuit.data))
         if current_node.tree_depth == 2*n_qubits:
-            prob_choiche = modify_prob_choice(prob_choiche, len_qc=len(current_node.state.circuit.data))
+            prob_choiche = {'a': 25, 'd': 25, 's': 25, 'c': 25, 'p': 0}
+
     print('Last epoch:', epoch_counter)
     # Return the best
     best_node = root
@@ -190,4 +188,4 @@ def nested(iterations, root, budget, max_branches, evaluation_function, verbose)
     return best_child
 
 
-max_depth = 20
+

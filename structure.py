@@ -133,9 +133,9 @@ class GateSet:
         :return: new quantum circuit
         """
         qc = quantum_circuit.copy()
+        if len(qc.data) < 4:
+            return None
         position = random.randint(0, len(qc.data) - 2)
-        print('data:', qc.data)
-        print('position chosen:', position)
         qc.data.remove(qc.data[position])
         return qc
 
@@ -174,24 +174,23 @@ class GateSet:
         qc.data = instructions
         return qc
 
-    @staticmethod
-    def change(quantum_circuit):
+    def change(self, quantum_circuit):
         qc = quantum_circuit.copy()
         n = len(qc.data)
         position = random.choice([i for i in range(n)])
+
         check = 0
         while len(qc.data[position][0].params) == 0:
             position = random.choice([i for i in range(n)])
             check += 1
             if check > 2*n:
                 return None
-
         gate_to_change = qc.data[position][0]
         qc.data[position][0].params[0] = gate_to_change.params[0] + random.uniform(0, 0.2)
         return qc
 
     @staticmethod
-    def stop(quantum_circuit):
+    def stop():
         return 'stop'
 
 

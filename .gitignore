@@ -7,6 +7,16 @@ __pycache__/
 # C extensions
 *.so
 
+#Images
+# Portable Network Graphics
+*.png
+*.jpg
+*.jpeg
+*.jpe
+*.jif
+*.jfif
+*.jfi
+
 # Distribution / packaging
 .Python
 build/
