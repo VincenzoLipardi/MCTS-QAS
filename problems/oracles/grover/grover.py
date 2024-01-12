@@ -80,7 +80,7 @@ def grover_algo(oracle, iterations, ancilla=1, oracle_gate=None):
     transpiled_qc = transpile(qc, qasm_simulator)
     result = qasm_simulator.run(transpiled_qc, shots=1000).result()
     counts = result.get_counts()
-    # print(max(result.get_counts(), key=counts.get))
+    # print(Rollout_max(result.get_counts(), key=counts.get))
     return counts
 
 # print(grover_algo(oracle='exact', oracle_gate=None, iterations=2, ancilla=1))

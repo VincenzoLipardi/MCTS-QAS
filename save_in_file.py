@@ -1,6 +1,7 @@
 import mcts
 import pandas as pd
 import os.path
+import numpy as np
 from structure import Circuit
 import matplotlib.pyplot as plt
 from problems.evaluation_functions import h2, vqls_1, sudoku2x2
@@ -9,22 +10,26 @@ from problems.oracles.grover.grover import grover_algo
 from qiskit.visualization import plot_histogram
 
 
-def data(evaluation_function, variable_qubits, ancilla_qubits, gate_set, budget, max_branches, max_depth, roll_out_steps, iteration, verbose):
+def data(evaluation_function, variable_qubits, ancilla_qubits, gate_set, budget, max_branches, max_depth, iteration, verbose, rollout_type="classic", roll_out_steps=None):
     root = mcts.Node(Circuit(variable_qubits=variable_qubits, ancilla_qubits=ancilla_qubits), max_depth=max_depth)
 
-    final_state = mcts.mcts(root, budget=budget, max_branches=max_branches, evaluation_function=evaluation_function, roll_out_steps=roll_out_steps, verbose=verbose)
+    final_state = mcts.mcts(root, budget=budget, max_branches=max_branches, evaluation_function=evaluation_function, rollout_type=rollout_type, roll_out_steps=roll_out_steps, verbose=verbose)
     if verbose:
         print("Value best node overall: ", final_state[0].value)
-    filename = 'experiments/' + evaluation_function.__name__ + '/' + gate_set + '_bf_' + str(max_branches) + '_budget_' + str(budget)+'run_'+str(iteration)
+    ro = 'rollout_' + rollout_type + '/'
+    filename = 'experiments/' + evaluation_function.__name__ + '/' + ro + gate_set + '_bf_' + str(max_branches) + '_budget_' + str(budget)+'_ro_'+str(roll_out_steps)+'_run_'+str(iteration)
 
     df = pd.DataFrame(final_state[1], columns=['path'])
+
     df.to_pickle(os.path.join(filename + '.pkl'))
     return print("files saved in experiments/", evaluation_function.__name__)
 
 
-def get_pkl(evaluation_function, max_branches, gate_set, budget, verbose=False):
-
-    filename = 'experiments/' + evaluation_function.__name__ + '/' + gate_set + '_bf_' + str(max_branches) + "_budget_" + str(budget)+'run_'+str(0)
+def get_pkl(evaluation_function, max_branches, gate_set, budget, roll_out_steps, rollout_type, verbose=False):
+    ro = ''
+    if rollout_type is not None:
+        ro = 'rollout_' + rollout_type + '/'
+    filename = 'experiments/' + evaluation_function.__name__ + '/' + ro + gate_set + '_bf_' + str(max_branches) + "_budget_" + str(budget)+'_ro_'+str(roll_out_steps)+'_run_'+str(0)
     df = pd.read_pickle(filename+'.pkl')
 
     path = df['path']
@@ -41,6 +46,26 @@ def get_pkl(evaluation_function, max_branches, gate_set, budget, verbose=False):
     return values_along_path, visits_along_path, qc_along_path
 
 
+def get_paths(evaluation_function, max_branches, gate_set, budget, roll_out_steps, rollout_type, n_iter):
+    values_along_path = []
+    visits_along_path = []
+    qc_along_path = []
+    ro = '/rollout_'+rollout_type
+    if evaluation_function == sudoku2x2:
+        ro =''
+    for i in range(n_iter):
+        filename = 'experiments/' + evaluation_function.__name__ + ro+'/' + gate_set + '_bf_' + str(max_branches) + "_budget_" + str(budget)+'_ro_'+str(roll_out_steps)+'_run_'+str(i)
+        df = pd.read_pickle(filename+'.pkl')
+        path = df['path']
+
+        qc_along_path.append([node.state.circuit for node in path])
+        if evaluation_function != sudoku2x2:
+            values_along_path.append([node.value.numpy() for node in path])
+            visits_along_path.append([node.visits for node in path])
+
+    return values_along_path, qc_along_path
+
+
 def get_benchmark(evaluation_function):
     if evaluation_function == h2:
         # List
@@ -49,8 +74,8 @@ def get_benchmark(evaluation_function):
         return problem, classical_sol
 
 
-def plot_Cost_Func(evaluation_function, max_branches, gate_set, budget):
-    data = get_pkl(evaluation_function, max_branches, gate_set, budget)[2]
+def plot_Cost_Func(evaluation_function, max_branches, gate_set, budget, roll_out_steps, rollout_type=None):
+    data = get_pkl(evaluation_function, max_branches, gate_set, budget, roll_out_steps, rollout_type)[2]
     indices = list(range(len(data)))
     cost = list(map(lambda x: evaluation_function(x, cost=True), data))
     color = 'tab:blue'
@@ -64,38 +89,74 @@ def plot_Cost_Func(evaluation_function, max_branches, gate_set, budget):
         benchmark_value = get_benchmark(evaluation_function)[1]
     if benchmark_value is not None:
         plt.axhline(y=benchmark_value, color='r', linestyle='--', label=f'bench_FCI({benchmark_value})')
-    title = evaluation_function.__name__ + '_' + gate_set + '_bf_' + str(max_branches) + "_budget_" + str(budget)
+    title = evaluation_function.__name__ + '_' + gate_set + '_bf_' + str(max_branches) + "_budget_" + str(budget)+'_ro_'+str(roll_out_steps)
     plt.legend()
     plt.title(title)
-    plt.savefig('experiments/' + evaluation_function.__name__ + '/C_' + gate_set + '_bf_' + str(max_branches) + "_budget_" + str(
-            budget) + '.png')
+    ro = ''
+    if rollout_type is not None:
+        ro = '/rollout_' + rollout_type
+    plt.savefig('experiments/' + evaluation_function.__name__ + ro + '/C_' + gate_set + '_bf_' + str(max_branches) + "_budget_" +str(budget)+'_ro_'+str(roll_out_steps)+ '.png')
     print('image saved')
     plt.clf()
 
 
-def plot_Reward_Func(evaluation_function, max_branches, gate_set, budget):
-    data = get_pkl(evaluation_function, max_branches, gate_set, budget)[2]
+def plot_cost_all_iterations(evaluation_function, max_branches, gate_set, budget, roll_out_steps, rollout_type, n_iter=10):
+    data = get_paths(evaluation_function, max_branches, gate_set, budget, roll_out_steps, rollout_type, n_iter)[1]
+
+    indices = list(range(len(max(data, key=len))))
+
+    plt.xlabel('Tree Depth')
+    plt.ylabel('Cost')
+    plt.xticks(indices)
+
+    for i in range(n_iter):
+        cost = list(map(lambda x: evaluation_function(x, cost=True), data[i]))
+        plt.plot(list(range(len(cost))), cost, marker='o', linestyle='-', label=str(i+1))
+    benchmark_value = None
+    if evaluation_function == h2:
+        benchmark_value = get_benchmark(evaluation_function)[1]
+    if benchmark_value is not None:
+        plt.axhline(y=benchmark_value, color='r', linestyle='--', label='bench_FCI')
+    title = evaluation_function.__name__ + '_' + gate_set + '_bf_' + str(max_branches) + "_budget_" + str(
+        budget)
+    plt.legend(loc='best')
+    plt.title(title)
+    ro = ''
+    if rollout_type is not None:
+        ro = '/rollout_' + rollout_type
+    plt.savefig('experiments/' + evaluation_function.__name__ + ro + '/C_' + gate_set + '_bf_' + str(
+        max_branches) + "_budget_" + str(budget) + '_ro_' + str(roll_out_steps) + '.png')
+    print('image saved')
+    plt.clf()
+
+
+def plot_Reward_Func(evaluation_function, max_branches, gate_set, budget, roll_out_steps, rollout_type=None):
+    data = get_pkl(evaluation_function, max_branches, gate_set, budget, roll_out_steps, rollout_type)[2]
     indices = list(range(len(data)))
     reward = list(map(evaluation_function, data))
     plt.plot(indices, reward, marker='o', linestyle='-', label='Reward')
     plt.xlabel('Tree Depth')
     plt.ylabel('Reward')
     plt.xticks(indices)
-
+    ro = ''
+    if rollout_type is not None:
+        ro = '/rollout_' + rollout_type
     title = evaluation_function.__name__ + '_' + gate_set + '_bf_' + str(max_branches) + "_budget_" + str(budget)
     plt.title(title)
-    plt.savefig('experiments/'+evaluation_function.__name__ + '/R_' + gate_set + '_bf_' + str(max_branches) + "_budget_" + str(budget)+'.png')
+    plt.savefig('experiments/'+evaluation_function.__name__ +ro+'/R_' + gate_set + '_bf_' + str(max_branches) + "_budget_" + str(budget)+'.png')
 
     print('image saved')
     plt.clf()
 
+
 def plot_oracle(evaluation_function, max_branches, gate_set, budget):
-    data = get_pkl(evaluation_function, max_branches, gate_set, budget)
+    data = get_pkl(evaluation_function, max_branches, gate_set, budget, roll_out_steps=0, rollout_type=None)
     gate = data[2][-1].to_gate(label='Oracle Approx')
     counts_approx = grover_algo(oracle='approximation', oracle_gate=gate, iterations=2, ancilla=1)
     counts_exact = grover_algo(oracle='exact', iterations=2)
 
     legend = ['Exact', 'Approx']
+
     filename = 'experiments/sudoku2x2/Istogram' + gate_set + '_bf_' + str(max_branches) + '_budget_' + str(budget)
 
     plot_histogram([counts_exact, counts_approx], legend=legend, color=['crimson', 'midnightblue'],
@@ -103,3 +164,60 @@ def plot_oracle(evaluation_function, max_branches, gate_set, budget):
     print('image saved')
     plt.clf()
 
+
+def plot_sudoku(evaluation_function, max_branches, gate_set, roll_out_steps=0, rollout_type='', n_iter=10):
+    BUDGET = [1000, 2000, 5000, 10000]
+    counts_exact = grover_algo(oracle='exact', iterations=2)
+    for budget in BUDGET:
+        data = get_paths(evaluation_function, max_branches, gate_set, budget, roll_out_steps, rollout_type, n_iter)[1]
+        qc_solutions = [data[i][-1] for i in range(n_iter)]  # leaf nodes
+        gates = [qc.to_gate(label='Oracle Approx') for qc in qc_solutions]
+
+        counts_approx = [grover_algo(oracle='approximation', oracle_gate=gates[i], iterations=2, ancilla=1) for i in range(len(gates))]
+        print(counts_approx)
+        counts_approx_good = [sub['0110']+sub['1001'] for sub in counts_approx]
+
+    return counts_approx_good
+
+
+def h2_boxplot(evaluation_function, max_branches, gate_set, roll_out_steps, rollout_type, n_iter=10):
+    solutions = []
+    BUDGET = [1000, 2000, 5000, 10000, 50000]
+    for budget in BUDGET:
+        data = get_paths(evaluation_function, max_branches, gate_set, budget, roll_out_steps, rollout_type, n_iter)[1]
+        qc_solutions = [data[i][-1] for i in range(n_iter)]   # leaf nodes
+        sol = list(map(lambda x: evaluation_function(x, cost=True), qc_solutions))
+        solutions.append([x.numpy() for x in sol])
+
+    fig = plt.figure(figsize=(10, 7))
+
+    # Creating plot
+    lab = [str(b) for b in BUDGET]
+    plt.boxplot(solutions, patch_artist=True, labels=lab, meanline=True)
+
+    plt.xlabel('MCTS Simulations')
+    plt.ylabel('Cost')
+
+    flat_solutions = [x for xs in solutions for x in xs]
+    maximum = round(max(flat_solutions), 1)
+    plt.yticks(np.arange(-1.2, maximum+0.1, step=0.1))
+    plt.axhline(y=-1.136, color='r', linestyle='--', label='bench_FCI')
+
+    ro = '/rollout_' + rollout_type
+    title = evaluation_function.__name__ + '_' + gate_set + '_bf_' + str(max_branches)+'_ro_' + str(roll_out_steps)
+    plt.title(title)
+
+    plt.savefig('experiments/' + evaluation_function.__name__ + ro+'/boxplot_' + gate_set + '_bf_' + str(
+        max_branches) + '_ro_' + str(roll_out_steps) + '.png')
+
+    return solutions
+
+
+def get_qc_depth(evaluation_function, max_branches, gate_set, budget, roll_out_steps, rollout_type, n_iter=10):
+    data = get_paths(evaluation_function, max_branches, gate_set, budget, roll_out_steps, rollout_type, n_iter)[1]
+    qc_solutions = [data[i][-1] for i in range(n_iter)]  # leaf nodes
+    depth = [qc.depth() for qc in qc_solutions]
+    return depth
+
+
+print(get_qc_depth(evaluation_function=h2, max_branches=5, gate_set='continuous', budget=100000, roll_out_steps=2, rollout_type='classic'))

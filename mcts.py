@@ -82,7 +82,7 @@ def expand(node, prob_choice):
     return new_node
 
 
-def rollout(node, steps=2):
+def rollout(node, steps):
     new_node = node
     for i in range(steps):
         new_node = new_node.define_children(prob_choice={'a': 25, 'd': 25, 's': 25, 'c': 25, 'p': 0}, roll_out=True)
@@ -118,7 +118,7 @@ def modify_prob_choice(dictionary, len_qc, stop_happened=True):
     return modified_dict
 
 
-def mcts(root, budget, max_branches, evaluation_function, roll_out_steps=None, verbose=False):
+def mcts(root, budget, max_branches, evaluation_function, rollout_type, roll_out_steps, verbose=False):
     prob_choiche = {'a': 100, 'd': 0, 's': 0, 'c': 0, 'p': 0}
     if verbose:
         print('Root Node: \n', root.state.circuit)
@@ -146,6 +146,13 @@ def mcts(root, budget, max_branches, evaluation_function, roll_out_steps=None, v
             if isinstance(roll_out_steps, int):
                 leaf_node = rollout(current_node, steps=roll_out_steps)
                 result = evaluate(leaf_node, evaluation_function)
+                if roll_out_steps > 1 and rollout_type == 'Rollout_max':
+                    result_list = [result]
+                    node_to_evaluate = leaf_node
+                    for _ in range(roll_out_steps):
+                        result_list.append(evaluate(node_to_evaluate.parent, evaluation_function))
+                    result = max(result_list)
+
             else:
                 if verbose:
                     print('No rollout')
@@ -174,11 +181,3 @@ def mcts(root, budget, max_branches, evaluation_function, roll_out_steps=None, v
         best_node = best_found
 
     return best_node, path
-
-
-def nested(iterations, root, budget, max_branches, evaluation_function, verbose):
-    for _ in range(iterations):
-        mcts(root, budget=budget, max_branches=max_branches, evaluation_function=evaluation_function, verbose=verbose)
-        root = root.best_child()
-    best_child = root.best_child()
-    return best_child

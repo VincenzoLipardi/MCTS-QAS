@@ -33,7 +33,7 @@ class Circuit:
     def nisq_control(self, max_depth):
         """ Check if it is executable on a nisq device. Our definition comes from IBM devices
         :param max_depth: integer. Max quantum circuit depth due to the hardware constraint (NISQ).
-        :return: False if the depth is beyond teh max depth
+        :return: False if the depth is beyond teh Rollout_max depth
         """
         if self.circuit.depth() >= max_depth:
             nisq_control = False
