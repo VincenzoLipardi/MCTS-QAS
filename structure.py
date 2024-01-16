@@ -49,11 +49,15 @@ class Circuit:
         reward = evaluation_function(self.circuit)
         return reward
 
-    def get_legal_action(self, gate_set, max_depth, prob_choice):
+    def get_legal_action(self, gate_set, max_depth, prob_choice, stop):
+        if stop:
+            prob_choice['p'] = 0
         if self.is_nisq is None:
             self.nisq_control(max_depth)
         if not self.is_nisq:
             prob_choice['a'] = 0
+            prob_choice['d'] = 50
+
         keys = list(prob_choice.keys())
         probabilities = list(prob_choice.values())
         probabilities = np.array(probabilities) / sum(probabilities)
@@ -190,7 +194,7 @@ class GateSet:
         return qc
 
     @staticmethod
-    def stop():
+    def stop(quantum_circuit):
         return 'stop'
 
 

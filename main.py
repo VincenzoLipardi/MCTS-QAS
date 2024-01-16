@@ -4,7 +4,7 @@ from problems.evaluation_functions import h2, vqls_1, sudoku2x2
 BUDGET = [1000, 2000, 5000, 10000, 50000]
 M = [3, 5, 7, 10, 15]
 eval_func = [h2, vqls_1, sudoku2x2]
-iterations = 10
+iterations = 3
 RT = 'classic'
 
 for f in eval_func:

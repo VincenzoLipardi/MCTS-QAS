@@ -28,6 +28,9 @@ class Node:
         self.tree_depth = 0 if parent is None else parent.tree_depth + 1
         # Gate set
         self.gate_set = 'continuous'
+        # Weights of the possible actions when expansion is executed
+        self.stop_is_done = False
+
 
     """def __repr__(self):
         return "State: {}\nParent: {}\nChildren: {} \nNum Visits: {}\nTotal Reward: {}\nisTerminal: {}\nTree Depth: {}".format(
@@ -45,10 +48,19 @@ class Node:
 
         parent = self
         qc = parent.state.circuit.copy()
-        new_qc = parent.state.get_legal_action(GateSet(self.gate_set), self.max_depth, prob_choice)(qc)
+        stop = self.stop_is_done
+        if roll_out:
+            stop = True
+        new_qc = parent.state.get_legal_action(GateSet(self.gate_set), self.max_depth, prob_choice, stop)(qc)
+        if new_qc == 'stop':
+            # It means that get_legal_actions returned the STOP action, then we define this node as Terminal
+            self.isTerminal = True
+            self.stop_is_done = True
+            return self
+
         while new_qc is None:
             # It chooses to change parameters, but there are no parametrized gates. Or delete in a very shallow circuit
-            new_qc = parent.state.get_legal_action(GateSet(self.gate_set), self.max_depth, prob_choice)(qc)
+            new_qc = parent.state.get_legal_action(GateSet(self.gate_set), self.max_depth, prob_choice, stop)(qc)
 
         if isinstance(new_qc, QuantumCircuit):
             new_state = Circuit(4, 1).building_state(new_qc)
@@ -57,9 +69,7 @@ class Node:
                 self.children.append(new_child)
             return new_child
         else:
-            # It means that get_legal_actions returned the STOP action, then we define this node as Terminal
-            self.isTerminal = True
-            return None
+            raise TypeError
 
     def best_child(self):
         children_with_values = [(child, child.value)
@@ -85,7 +95,7 @@ def expand(node, prob_choice):
 def rollout(node, steps):
     new_node = node
     for i in range(steps):
-        new_node = new_node.define_children(prob_choice={'a': 25, 'd': 25, 's': 25, 'c': 25, 'p': 0}, roll_out=True)
+        new_node = new_node.define_children(prob_choice={'a': 10, 'd': 10, 's': 40, 'c': 40, 'p': 0}, roll_out=True)
     return new_node
 
 
@@ -168,7 +178,7 @@ def mcts(root, budget, max_branches, evaluation_function, rollout_type, roll_out
         epoch_counter += 1
         n_qubits = len(current_node.state.circuit.qubits)
         if current_node.tree_depth == 2*n_qubits:
-            prob_choiche = {'a': 25, 'd': 25, 's': 25, 'c': 25, 'p': 0}
+            prob_choiche = {'a': 50, 'd': 0, 's': 25, 'c': 25, 'p': 0}
 
     print('Last epoch:', epoch_counter)
     # Return the best

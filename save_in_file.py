@@ -52,7 +52,7 @@ def get_paths(evaluation_function, max_branches, gate_set, budget, roll_out_step
     qc_along_path = []
     ro = '/rollout_'+rollout_type
     if evaluation_function == sudoku2x2:
-        ro =''
+        ro = ''
     for i in range(n_iter):
         filename = 'experiments/' + evaluation_function.__name__ + ro+'/' + gate_set + '_bf_' + str(max_branches) + "_budget_" + str(budget)+'_ro_'+str(roll_out_steps)+'_run_'+str(i)
         df = pd.read_pickle(filename+'.pkl')
@@ -75,9 +75,9 @@ def get_benchmark(evaluation_function):
 
 
 def plot_Cost_Func(evaluation_function, max_branches, gate_set, budget, roll_out_steps, rollout_type=None):
-    data = get_pkl(evaluation_function, max_branches, gate_set, budget, roll_out_steps, rollout_type)[2]
-    indices = list(range(len(data)))
-    cost = list(map(lambda x: evaluation_function(x, cost=True), data))
+    d = get_pkl(evaluation_function, max_branches, gate_set, budget, roll_out_steps, rollout_type)[2]
+    indices = list(range(len(d)))
+    cost = list(map(lambda x: evaluation_function(x, cost=True), d))
     color = 'tab:blue'
 
     plt.xlabel('Tree Depth')
@@ -95,22 +95,22 @@ def plot_Cost_Func(evaluation_function, max_branches, gate_set, budget, roll_out
     ro = ''
     if rollout_type is not None:
         ro = '/rollout_' + rollout_type
-    plt.savefig('experiments/' + evaluation_function.__name__ + ro + '/C_' + gate_set + '_bf_' + str(max_branches) + "_budget_" +str(budget)+'_ro_'+str(roll_out_steps)+ '.png')
+    plt.savefig('experiments/' + evaluation_function.__name__ + ro + '/C_' + gate_set + '_bf_' + str(max_branches) + "_budget_" + str(budget)+'_ro_'+str(roll_out_steps) + '.png')
     print('image saved')
     plt.clf()
 
 
 def plot_cost_all_iterations(evaluation_function, max_branches, gate_set, budget, roll_out_steps, rollout_type, n_iter=10):
-    data = get_paths(evaluation_function, max_branches, gate_set, budget, roll_out_steps, rollout_type, n_iter)[1]
+    d = get_paths(evaluation_function, max_branches, gate_set, budget, roll_out_steps, rollout_type, n_iter)[1]
 
-    indices = list(range(len(max(data, key=len))))
+    indices = list(range(len(max(d, key=len))))
 
     plt.xlabel('Tree Depth')
     plt.ylabel('Cost')
     plt.xticks(indices)
 
     for i in range(n_iter):
-        cost = list(map(lambda x: evaluation_function(x, cost=True), data[i]))
+        cost = list(map(lambda x: evaluation_function(x, cost=True), d[i]))
         plt.plot(list(range(len(cost))), cost, marker='o', linestyle='-', label=str(i+1))
     benchmark_value = None
     if evaluation_function == h2:
@@ -131,9 +131,9 @@ def plot_cost_all_iterations(evaluation_function, max_branches, gate_set, budget
 
 
 def plot_Reward_Func(evaluation_function, max_branches, gate_set, budget, roll_out_steps, rollout_type=None):
-    data = get_pkl(evaluation_function, max_branches, gate_set, budget, roll_out_steps, rollout_type)[2]
-    indices = list(range(len(data)))
-    reward = list(map(evaluation_function, data))
+    d = get_pkl(evaluation_function, max_branches, gate_set, budget, roll_out_steps, rollout_type)[2]
+    indices = list(range(len(d)))
+    reward = list(map(evaluation_function, d))
     plt.plot(indices, reward, marker='o', linestyle='-', label='Reward')
     plt.xlabel('Tree Depth')
     plt.ylabel('Reward')
@@ -143,15 +143,15 @@ def plot_Reward_Func(evaluation_function, max_branches, gate_set, budget, roll_o
         ro = '/rollout_' + rollout_type
     title = evaluation_function.__name__ + '_' + gate_set + '_bf_' + str(max_branches) + "_budget_" + str(budget)
     plt.title(title)
-    plt.savefig('experiments/'+evaluation_function.__name__ +ro+'/R_' + gate_set + '_bf_' + str(max_branches) + "_budget_" + str(budget)+'.png')
+    plt.savefig('experiments/'+evaluation_function.__name__ + ro + '/R_' + gate_set + '_bf_' + str(max_branches) + "_budget_" + str(budget)+'.png')
 
     print('image saved')
     plt.clf()
 
 
 def plot_oracle(evaluation_function, max_branches, gate_set, budget):
-    data = get_pkl(evaluation_function, max_branches, gate_set, budget, roll_out_steps=0, rollout_type=None)
-    gate = data[2][-1].to_gate(label='Oracle Approx')
+    d = get_pkl(evaluation_function, max_branches, gate_set, budget, roll_out_steps=0, rollout_type=None)
+    gate = d[2][-1].to_gate(label='Oracle Approx')
     counts_approx = grover_algo(oracle='approximation', oracle_gate=gate, iterations=2, ancilla=1)
     counts_exact = grover_algo(oracle='exact', iterations=2)
 
@@ -167,10 +167,11 @@ def plot_oracle(evaluation_function, max_branches, gate_set, budget):
 
 def plot_sudoku(evaluation_function, max_branches, gate_set, roll_out_steps=0, rollout_type='', n_iter=10):
     BUDGET = [1000, 2000, 5000, 10000]
-    counts_exact = grover_algo(oracle='exact', iterations=2)
+    # counts_exact = grover_algo(oracle='exact', iterations=2)
+    counts_approx_good = []
     for budget in BUDGET:
-        data = get_paths(evaluation_function, max_branches, gate_set, budget, roll_out_steps, rollout_type, n_iter)[1]
-        qc_solutions = [data[i][-1] for i in range(n_iter)]  # leaf nodes
+        d = get_paths(evaluation_function, max_branches, gate_set, budget, roll_out_steps, rollout_type, n_iter)[1]
+        qc_solutions = [d[i][-1] for i in range(n_iter)]  # leaf nodes
         gates = [qc.to_gate(label='Oracle Approx') for qc in qc_solutions]
 
         counts_approx = [grover_algo(oracle='approximation', oracle_gate=gates[i], iterations=2, ancilla=1) for i in range(len(gates))]
@@ -184,13 +185,12 @@ def h2_boxplot(evaluation_function, max_branches, gate_set, roll_out_steps, roll
     solutions = []
     BUDGET = [1000, 2000, 5000, 10000, 50000]
     for budget in BUDGET:
-        data = get_paths(evaluation_function, max_branches, gate_set, budget, roll_out_steps, rollout_type, n_iter)[1]
-        qc_solutions = [data[i][-1] for i in range(n_iter)]   # leaf nodes
+        d = get_paths(evaluation_function, max_branches, gate_set, budget, roll_out_steps, rollout_type, n_iter)[1]
+        qc_solutions = [d[i][-1] for i in range(n_iter)]   # leaf nodes
         sol = list(map(lambda x: evaluation_function(x, cost=True), qc_solutions))
         solutions.append([x.numpy() for x in sol])
 
-    fig = plt.figure(figsize=(10, 7))
-
+    # plt.figure(figsize=(10, 7))
     # Creating plot
     lab = [str(b) for b in BUDGET]
     plt.boxplot(solutions, patch_artist=True, labels=lab, meanline=True)
@@ -214,10 +214,7 @@ def h2_boxplot(evaluation_function, max_branches, gate_set, roll_out_steps, roll
 
 
 def get_qc_depth(evaluation_function, max_branches, gate_set, budget, roll_out_steps, rollout_type, n_iter=10):
-    data = get_paths(evaluation_function, max_branches, gate_set, budget, roll_out_steps, rollout_type, n_iter)[1]
-    qc_solutions = [data[i][-1] for i in range(n_iter)]  # leaf nodes
+    d = get_paths(evaluation_function, max_branches, gate_set, budget, roll_out_steps, rollout_type, n_iter)[1]
+    qc_solutions = [d[i][-1] for i in range(n_iter)]  # leaf nodes
     depth = [qc.depth() for qc in qc_solutions]
     return depth
-
-
-print(get_qc_depth(evaluation_function=h2, max_branches=5, gate_set='continuous', budget=100000, roll_out_steps=2, rollout_type='classic'))
