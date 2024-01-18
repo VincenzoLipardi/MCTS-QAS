@@ -31,21 +31,37 @@ class Node:
         # Weights of the possible actions when expansion is executed
         self.stop_is_done = False
 
-
-    """def __repr__(self):
-        return "State: {}\nParent: {}\nChildren: {} \nNum Visits: {}\nTotal Reward: {}\nisTerminal: {}\nTree Depth: {}".format(
-            self.state, self.parent, self.children, self.visits, self.value, self.isTerminal, self.tree_depth)"""
-
-    def is_fully_expanded(self, max_branches):
+    def is_fully_expanded(self, branches):
         """
-        :param max_branches: Maximum number of branches per node
+        :param branches: int or boolean. If true, progressive widening. if int the maximum number of branches is fixed.
         :return: Boolean. True if the node is a leaf. False otherwise.
         """
-        return len(self.children) >= max_branches
+        if isinstance(branches, bool):
+            if branches:
+                t = self.visits
+                # alpha in [0,1], set it close to 1 in domain is strongly stochastic, close to 0 otherwise
+                if t == 0:
+                    t = 1
+                alpha = 0.3
+                C = 1
+                k = np.ceil(C*(t**alpha))
+                return len(self.children) >= k
+            else:
+                raise NotImplementedError
+        elif isinstance(branches, int):
+            # max_branches
+            return len(self.children) >= branches
+        else:
+            raise TypeError
 
     def define_children(self, prob_choice, roll_out=False):
-        # Expand the node by adding a new gate to the circuit
+        """
 
+        :param prob_choice: dict.
+        :param roll_out: boolean. True if it is used for the rollout (new nodes are temporary, not included in the tree)
+        :return: Node
+        """
+        # Expand the node by adding a new gate to the circuit
         parent = self
         qc = parent.state.circuit.copy()
         stop = self.stop_is_done
@@ -57,19 +73,20 @@ class Node:
             self.isTerminal = True
             self.stop_is_done = True
             return self
-
-        while new_qc is None:
-            # It chooses to change parameters, but there are no parametrized gates. Or delete in a very shallow circuit
-            new_qc = parent.state.get_legal_action(GateSet(self.gate_set), self.max_depth, prob_choice, stop)(qc)
-
-        if isinstance(new_qc, QuantumCircuit):
-            new_state = Circuit(4, 1).building_state(new_qc)
-            new_child = Node(new_state, max_depth=self.max_depth, parent=self)
-            if not roll_out:
-                self.children.append(new_child)
-            return new_child
         else:
-            raise TypeError
+
+            while new_qc is None:
+                # It chooses to change parameters, but there are no parametrized gates. Or delete in a very shallow circuit
+                new_qc = parent.state.get_legal_action(GateSet(self.gate_set), self.max_depth, prob_choice, stop)(qc)
+
+            if isinstance(new_qc, QuantumCircuit):
+                new_state = Circuit(4, 1).building_state(new_qc)
+                new_child = Node(new_state, max_depth=self.max_depth, parent=self)
+                if not roll_out:
+                    self.children.append(new_child)
+                return new_child
+            else:
+                raise TypeError
 
     def best_child(self):
         children_with_values = [(child, child.value)
@@ -128,7 +145,7 @@ def modify_prob_choice(dictionary, len_qc, stop_happened=True):
     return modified_dict
 
 
-def mcts(root, budget, max_branches, evaluation_function, rollout_type, roll_out_steps, verbose=False):
+def mcts(root, budget, evaluation_function, rollout_type, roll_out_steps, branches, verbose=False):
     prob_choiche = {'a': 100, 'd': 0, 's': 0, 'c': 0, 'p': 0}
     if verbose:
         print('Root Node: \n', root.state.circuit)
@@ -140,7 +157,8 @@ def mcts(root, budget, max_branches, evaluation_function, rollout_type, roll_out
             print('Epoch Counter: ', epoch_counter)
 
         # Selection
-        while not current_node.isTerminal and current_node.is_fully_expanded(max_branches=max_branches):
+
+        while not current_node.isTerminal and current_node.is_fully_expanded(branches=branches):
             current_node = select(current_node)
             if verbose:
                 print('Selection done. The selected child is: ', current_node, 'Node tree depth: ', current_node.tree_depth)

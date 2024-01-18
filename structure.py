@@ -78,7 +78,6 @@ def get_action_from_str(input_string, gate_set):
 
     # Choose the method based on the input string
     chosen_method = method_mapping.get(input_string, None)
-
     if chosen_method is not None and callable(chosen_method):
         return chosen_method
     else:

@@ -10,14 +10,20 @@ from problems.oracles.grover.grover import grover_algo
 from qiskit.visualization import plot_histogram
 
 
-def data(evaluation_function, variable_qubits, ancilla_qubits, gate_set, budget, max_branches, max_depth, iteration, verbose, rollout_type="classic", roll_out_steps=None):
+def data(evaluation_function, variable_qubits, ancilla_qubits, gate_set, budget, max_depth, iteration, verbose, branches, rollout_type="classic", roll_out_steps=None, ):
     root = mcts.Node(Circuit(variable_qubits=variable_qubits, ancilla_qubits=ancilla_qubits), max_depth=max_depth)
 
-    final_state = mcts.mcts(root, budget=budget, max_branches=max_branches, evaluation_function=evaluation_function, rollout_type=rollout_type, roll_out_steps=roll_out_steps, verbose=verbose)
+    final_state = mcts.mcts(root, budget=budget, branches=branches, evaluation_function=evaluation_function, rollout_type=rollout_type, roll_out_steps=roll_out_steps, verbose=verbose)
     if verbose:
         print("Value best node overall: ", final_state[0].value)
     ro = 'rollout_' + rollout_type + '/'
-    filename = 'experiments/' + evaluation_function.__name__ + '/' + ro + gate_set + '_bf_' + str(max_branches) + '_budget_' + str(budget)+'_ro_'+str(roll_out_steps)+'_run_'+str(iteration)
+    if isinstance(branches, bool) and branches:
+        branch = "_pw"
+    elif isinstance(branches, int):
+        branch = '_bf_' + str(branches)
+    else:
+        raise TypeError
+    filename = 'experiments/' + evaluation_function.__name__ + '/' + ro + gate_set + branch + '_budget_' + str(budget)+'_ro_'+str(roll_out_steps)+'_run_'+str(iteration)
 
     df = pd.DataFrame(final_state[1], columns=['path'])
 
@@ -25,11 +31,17 @@ def data(evaluation_function, variable_qubits, ancilla_qubits, gate_set, budget,
     return print("files saved in experiments/", evaluation_function.__name__)
 
 
-def get_pkl(evaluation_function, max_branches, gate_set, budget, roll_out_steps, rollout_type, verbose=False):
+def get_pkl(evaluation_function, branches, gate_set, budget, roll_out_steps, rollout_type, verbose=False):
     ro = ''
     if rollout_type is not None:
         ro = 'rollout_' + rollout_type + '/'
-    filename = 'experiments/' + evaluation_function.__name__ + '/' + ro + gate_set + '_bf_' + str(max_branches) + "_budget_" + str(budget)+'_ro_'+str(roll_out_steps)+'_run_'+str(0)
+    if isinstance(branches, bool) and branches:
+        branch = "_pw"
+    elif isinstance(branches, int):
+        branch = '_bf_' + str(branches)
+    else:
+        raise TypeError
+    filename = 'experiments/' + evaluation_function.__name__ + '/' + ro + gate_set + branch + "_budget_" + str(budget)+'_ro_'+str(roll_out_steps)+'_run_'+str(0)
     df = pd.read_pickle(filename+'.pkl')
 
     path = df['path']
@@ -46,15 +58,21 @@ def get_pkl(evaluation_function, max_branches, gate_set, budget, roll_out_steps,
     return values_along_path, visits_along_path, qc_along_path
 
 
-def get_paths(evaluation_function, max_branches, gate_set, budget, roll_out_steps, rollout_type, n_iter):
+def get_paths(evaluation_function, branches, gate_set, budget, roll_out_steps, rollout_type, n_iter):
     values_along_path = []
     visits_along_path = []
     qc_along_path = []
     ro = '/rollout_'+rollout_type
     if evaluation_function == sudoku2x2:
         ro = ''
+    if isinstance(branches, bool) and branches:
+        branch = "_pw"
+    elif isinstance(branches, int):
+        branch = '_bf_' + str(branches)
+    else:
+        raise TypeError
     for i in range(n_iter):
-        filename = 'experiments/' + evaluation_function.__name__ + ro+'/' + gate_set + '_bf_' + str(max_branches) + "_budget_" + str(budget)+'_ro_'+str(roll_out_steps)+'_run_'+str(i)
+        filename = 'experiments/' + evaluation_function.__name__ + ro+'/' + gate_set + branch + "_budget_" + str(budget)+'_ro_'+str(roll_out_steps)+'_run_'+str(i)
         df = pd.read_pickle(filename+'.pkl')
         path = df['path']
 
@@ -100,11 +118,10 @@ def plot_Cost_Func(evaluation_function, max_branches, gate_set, budget, roll_out
     plt.clf()
 
 
-def plot_cost_all_iterations(evaluation_function, max_branches, gate_set, budget, roll_out_steps, rollout_type, n_iter=10):
-    d = get_paths(evaluation_function, max_branches, gate_set, budget, roll_out_steps, rollout_type, n_iter)[1]
+def plot_cost_all_iterations(evaluation_function, branches, gate_set, budget, roll_out_steps, rollout_type, n_iter=10):
+    d = get_paths(evaluation_function, branches, gate_set, budget, roll_out_steps, rollout_type, n_iter)[1]
 
     indices = list(range(len(max(d, key=len))))
-
     plt.xlabel('Tree Depth')
     plt.ylabel('Cost')
     plt.xticks(indices)
@@ -115,17 +132,23 @@ def plot_cost_all_iterations(evaluation_function, max_branches, gate_set, budget
     benchmark_value = None
     if evaluation_function == h2:
         benchmark_value = get_benchmark(evaluation_function)[1]
+        plt.yticks(np.arange(-1.2, 0, 0.1))
     if benchmark_value is not None:
-        plt.axhline(y=benchmark_value, color='r', linestyle='--', label='bench_FCI')
-    title = evaluation_function.__name__ + '_' + gate_set + '_bf_' + str(max_branches) + "_budget_" + str(
+        plt.axhline(y=benchmark_value, color='r', linestyle='--', label=f'bench_FCI({round(benchmark_value, 3)})')
+    if isinstance(branches, bool) and branches:
+        branch = "_pw"
+    elif isinstance(branches, int):
+        branch = '_bf_' + str(branches)
+    else:
+        raise TypeError
+    title = evaluation_function.__name__ + '_' + gate_set + branch + "_budget_" + str(
         budget)
     plt.legend(loc='best')
     plt.title(title)
     ro = ''
     if rollout_type is not None:
         ro = '/rollout_' + rollout_type
-    plt.savefig('experiments/' + evaluation_function.__name__ + ro + '/C_' + gate_set + '_bf_' + str(
-        max_branches) + "_budget_" + str(budget) + '_ro_' + str(roll_out_steps) + '.png')
+    plt.savefig('experiments/' + evaluation_function.__name__ + ro + '/C_' + gate_set + branch + "_budget_" + str(budget) + '_ro_' + str(roll_out_steps) + '.png')
     print('image saved')
     plt.clf()
 
