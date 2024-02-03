@@ -1,7 +1,6 @@
 import pennylane as qml
 from pennylane import numpy as np
 import math
-from qiskit import QuantumCircuit
 
 
 class VQLS:

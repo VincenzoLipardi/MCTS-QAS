@@ -4,7 +4,7 @@ from qiskit import QuantumCircuit
 
 
 class Node:
-    def __init__(self, state: Circuit, max_depth, parent=None):
+    def __init__(self, state: Circuit, max_depth: int, parent=None):
         """
         A node of the tree store a lot of information in order to guide the search
         :param state: Circuit object. This is the quantum circuit stored in the node.
@@ -30,38 +30,41 @@ class Node:
         self.gate_set = 'continuous'
         # Weights of the possible actions when expansion is executed
         self.stop_is_done = False
+        self.action = None
 
-    def is_fully_expanded(self, branches):
+    def is_fully_expanded(self, branches, C=1, alpha=0.3):
         """
+        :param alpha: float (in [0,1]). Have to be chosen close to 1 in  strongly stochastic domains, close to 0 ow
+        :param C: int. Hyperparameter
         :param branches: int or boolean. If true, progressive widening. if int the maximum number of branches is fixed.
         :return: Boolean. True if the node is a leaf. False otherwise.
         """
         if isinstance(branches, bool):
-            if branches:
-                t = self.visits
-                # alpha in [0,1], set it close to 1 in domain is strongly stochastic, close to 0 otherwise
-                if t == 0:
+            # Progressive Widening Techniques: adaptive number of branches
+            if not branches:
+                # Progressive Widening for discrete action space
+                if self.visits > 0:
+                    t = self.visits
+                else:
                     t = 1
-                alpha = 0.3
-                C = 1
                 k = np.ceil(C*(t**alpha))
                 return len(self.children) >= k
             else:
+                # Progressive Widening for continuous action space
                 raise NotImplementedError
         elif isinstance(branches, int):
-            # max_branches
+            # The number of the tree's branches is fixed
             return len(self.children) >= branches
         else:
             raise TypeError
 
     def define_children(self, prob_choice, roll_out=False):
-        """
-
-        :param prob_choice: dict.
+        """ Expand node by defining a new node applying a modification to the circuit
+        :param prob_choice: dict. Probability to choose between the possible actions
         :param roll_out: boolean. True if it is used for the rollout (new nodes are temporary, not included in the tree)
         :return: Node
         """
-        # Expand the node by adding a new gate to the circuit
+
         parent = self
         qc = parent.state.circuit.copy()
         stop = self.stop_is_done
@@ -96,10 +99,7 @@ class Node:
 
 def select(node, exploration=1.0):
     l = np.log(node.visits)
-    children_with_values = [(child, child.value / child.visits +
-                             exploration * np.sqrt(l / child.visits))
-                            for child in node.children]
-
+    children_with_values = [(child, child.value / child.visits + exploration * np.sqrt(l / child.visits)) for child in node.children]
     selected_child = max(children_with_values, key=lambda x: x[1])[0]
     return selected_child
 
@@ -145,29 +145,32 @@ def modify_prob_choice(dictionary, len_qc, stop_happened=True):
     return modified_dict
 
 
-def mcts(root, budget, evaluation_function, rollout_type, roll_out_steps, branches, verbose=False):
+def mcts(root, budget, evaluation_function, rollout_type, roll_out_steps, branches, choices, verbose=False):
     prob_choiche = {'a': 100, 'd': 0, 's': 0, 'c': 0, 'p': 0}
     if verbose:
         print('Root Node: \n', root.state.circuit)
     epoch_counter = 0
-    best_found = None
+
     for _ in range(budget):
         current_node = root
+        if epoch_counter > 1:
+            while current_node.best_child().visits >= budget/20:
+                current_node = current_node.best_child()
         if verbose:
             print('Epoch Counter: ', epoch_counter)
 
         # Selection
-
         while not current_node.isTerminal and current_node.is_fully_expanded(branches=branches):
+            print('Number of children nodes:', len(current_node.children))
             current_node = select(current_node)
             if verbose:
-                print('Selection done. The selected child is: ', current_node, 'Node tree depth: ', current_node.tree_depth)
+                print('Selection done. The selected child is: ', current_node, 'Node tree depth: ', current_node.tree_depth, 'quantum circuit:\n', current_node.state.circuit)
 
         # Expansion
         if not current_node.isTerminal:
             current_node = expand(current_node, prob_choice=prob_choiche)
             if verbose:
-                print("Tree expanded. Node's depth in the tree: ", current_node.tree_depth)
+                print("Tree expanded. Node's depth in the tree: ", current_node.tree_depth, '.\nQuantum circuit:\n', current_node.state.circuit)
 
         # Simulation
         if not current_node.isTerminal:
@@ -186,26 +189,31 @@ def mcts(root, budget, evaluation_function, rollout_type, roll_out_steps, branch
                     print('No rollout')
                 result = evaluate(current_node, evaluation_function)
         else:
-            if verbose:
-                print('It is a terminal node, evaluation done')
             result = evaluate(current_node, evaluation_function)
+            print('It is a terminal node, evaluation done')
         if verbose:
-            print('Simulation result: ', result)
+            print('Simulation done. Reward: ', result)
         # Backpropagation
         backpropagate(current_node, result)
         epoch_counter += 1
         n_qubits = len(current_node.state.circuit.qubits)
         if current_node.tree_depth == 2*n_qubits:
-            prob_choiche = {'a': 50, 'd': 0, 's': 25, 'c': 25, 'p': 0}
+            prob_choiche = choices
 
     print('Last epoch:', epoch_counter)
+
     # Return the best
     best_node = root
-    path = []
-    while len(best_node.children) > 1:
-        path.append(best_node)
-        best_node = best_node.best_child()
-    if best_found is not None:
-        best_node = best_found
+    # path =[]
+    qc_path = []
+    children = []
+    value, visits = [], []
 
-    return best_node, path
+    while len(best_node.children) >= 1:
+        # path.append(best_node)
+        qc_path.append(best_node.state.circuit)
+        children.append(len(best_node.children))
+        value.append(best_node.value)
+        visits.append(best_node.visits)
+        best_node = best_node.best_child()
+    return {'qc': qc_path, 'children': children, 'visits': visits, 'value': value}
