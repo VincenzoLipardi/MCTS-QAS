@@ -146,7 +146,7 @@ def modify_prob_choice(dictionary, len_qc, stop_happened=True):
 
 
 def mcts(root, budget, evaluation_function, rollout_type, roll_out_steps, branches, choices, verbose=False):
-    prob_choiche = {'a': 100, 'd': 0, 's': 0, 'c': 0, 'p': 0}
+    prob_choice = {'a': 100, 'd': 0, 's': 0, 'c': 0, 'p': 0}
     if verbose:
         print('Root Node: \n', root.state.circuit)
     epoch_counter = 0
@@ -168,7 +168,7 @@ def mcts(root, budget, evaluation_function, rollout_type, roll_out_steps, branch
 
         # Expansion
         if not current_node.isTerminal:
-            current_node = expand(current_node, prob_choice=prob_choiche)
+            current_node = expand(current_node, prob_choice=prob_choice)
             if verbose:
                 print("Tree expanded. Node's depth in the tree: ", current_node.tree_depth, '.\nQuantum circuit:\n', current_node.state.circuit)
 
@@ -198,7 +198,7 @@ def mcts(root, budget, evaluation_function, rollout_type, roll_out_steps, branch
         epoch_counter += 1
         n_qubits = len(current_node.state.circuit.qubits)
         if current_node.tree_depth == 2*n_qubits:
-            prob_choiche = choices
+            prob_choice = choices
 
     print('Last epoch:', epoch_counter)
 

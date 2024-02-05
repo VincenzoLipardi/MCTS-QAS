@@ -1,21 +1,38 @@
 import save_in_file as sif
 from problems.evaluation_functions import h2, vqls_1, sudoku2x2
 
-BUDGET = [2000, 5000, 10000, 50000]
-M = [False]
 eval_func = [h2]
-iterations = 10
-RT = 'classic'
-ROS = 1
+N_ITER = 10
+
+BUDGET = [1000, 2000, 5000, 10000, 50000, 100000, 200000]
+BF = [False]
+ROTYPE = 'max'
+ROSTEPS = [1]
 p = {'a': 50, 'd': 10, 's': 20, 'c': 20, 'p': 0}
-for f in eval_func:
-    for b in BUDGET:
-        for m in M:
-            for i in range(iterations):
-                if f == sudoku2x2:
-                    sif.data(evaluation_function=f, variable_qubits=5, ancilla_qubits=0, gate_set='continuous',
-                             budget=b, branches=m, max_depth=20, roll_out_steps=0, iteration=i, choices=p, verbose=True)
-                else:
-                    sif.data(evaluation_function=f, variable_qubits=4, ancilla_qubits=0, gate_set='continuous', rollout_type=RT,
-                             budget=b, branches=m, roll_out_steps=ROS, iteration=i, max_depth=20,  choices=p, verbose=True)
-                    print('done')
+MAX_DEPTH = 20      # Chosen by the hardware
+
+plot = [True, True]
+run = False
+
+for r in ROSTEPS:
+    for f in eval_func:
+        for m in BF:
+            for b in BUDGET:
+                for i in range(N_ITER):
+                    if run:
+                        if f == sudoku2x2:
+                            r = 0
+                            sif.data(evaluation_function=f, variable_qubits=5, ancilla_qubits=0, gate_set='continuous',
+                                         budget=b, branches=m, max_depth=MAX_DEPTH, roll_out_steps=r, iteration=i, choices=p,
+                                         verbose=True)
+                        else:
+                            sif.data(evaluation_function=f, variable_qubits=4, ancilla_qubits=0, gate_set='continuous',
+                                     rollout_type=ROTYPE, budget=b, branches=m, roll_out_steps=r, iteration=i, max_depth=MAX_DEPTH,
+                                     choices=p, verbose=True)
+                        print('Iteration ', i, ' has been saved')
+                if plot[0]:
+                    sif.plot_cost(evaluation_function=f, branches=False, budget=b, roll_out_steps=r,
+                                  rollout_type=ROTYPE, n_iter=N_ITER)
+            if plot[1]:
+                sif.boxplot(evaluation_function=f, branches=m, roll_out_steps=r, rollout_type=ROTYPE,
+                            n_iter=N_ITER)

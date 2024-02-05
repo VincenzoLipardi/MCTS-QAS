@@ -73,7 +73,6 @@ def get_paths(evaluation_function, branches, budget, roll_out_steps, rollout_typ
     qc_along_path = []
     children, visits, value = [], [], []
     for i in range(n_iter):
-        print(i)
         filename = get_filename(evaluation_function, budget, branches, iteration=i, gate_set=gate_set, rollout_type=rollout_type, roll_out_steps=roll_out_steps, image=False)
         if os.path.isfile(filename+'.pkl'):
             df = pd.read_pickle(filename+'.pkl')
@@ -130,24 +129,18 @@ def plot_cost(evaluation_function, branches, budget, roll_out_steps, rollout_typ
         plt.yticks(np.arange(-1.2, 0.1, 0.1))
     if benchmark_value is not None:
         plt.axhline(y=benchmark_value, color='r', linestyle='--', label=f'bench_FCI({round(benchmark_value, 3)})')
-    if isinstance(branches, bool) and branches:
-        branch = "_pw_aba"
-    elif isinstance(branches, int):
-        branch = '_bf_' + str(branches)
-    else:
-        raise TypeError
-    filename = get_filename(evaluation_function=evaluation_function, branches=branches, image=True, roll_out_steps=roll_out_steps, iteration=0, budget=budget)
+    filename = get_filename(evaluation_function=evaluation_function, branches=branches, image=True, roll_out_steps=roll_out_steps, rollout_type=rollout_type, iteration=0, budget=budget) + '_budget_'+str(budget)
     plt.legend(loc='best')
-    plt.title(evaluation_function.__name__)
+    plt.title(evaluation_function.__name__+ ' - Budget  '+str(budget))
 
     plt.savefig(filename + '_cost.png')
-    print('image saved')
+    print('Cost Plot image saved in ', filename)
     plt.clf()
 
 
 def plot_oracle(evaluation_function, max_branches, gate_set, budget, roll_out_steps=0, rollout_type=None):
-    d = get_paths(evaluation_function, max_branches, gate_set, budget, roll_out_steps, rollout_type)
-    gate = d[2][-1].to_gate(label='Oracle Approx')
+    d = get_paths(evaluation_function, max_branches, gate_set, budget, roll_out_steps, rollout_type)[0]
+    gate = d[-1][-1].to_gate(label='Oracle Approx')
     counts_approx = grover_algo(oracle='approximation', oracle_gate=gate, iterations=2, ancilla=1)
     counts_exact = grover_algo(oracle='exact', iterations=2)
 
@@ -164,7 +157,7 @@ def plot_oracle(evaluation_function, max_branches, gate_set, budget, roll_out_st
 def boxplot(evaluation_function, branches, roll_out_steps, rollout_type, n_iter):
     """ Save a boxplot image, with the stats on the n_iter independent runs vs the budget of mcts"""
     solutions = []
-    BUDGET = [1000, 2000, 5000, 10000, 50000]
+    BUDGET = [1000, 2000, 5000, 10000, 50000, 100000, 200000]
 
     # Gate Data
     for budget in BUDGET:
@@ -214,14 +207,14 @@ def boxplot(evaluation_function, branches, roll_out_steps, rollout_type, n_iter)
         raise NotImplementedError
 
     plt.axhline(y=benchmark, color='r', linestyle='--', label=label)
-    filename = get_filename(evaluation_function=evaluation_function, branches=branches, image=True, roll_out_steps=roll_out_steps, iteration=0, budget=0)
+    filename = get_filename(evaluation_function=evaluation_function, branches=branches, image=True, roll_out_steps=roll_out_steps, rollout_type=rollout_type, iteration=0, budget=0)
     plt.title(evaluation_function.__name__)
     plt.xlabel('MCTS Simulations')
     plt.legend()
     plt.savefig(filename + '_boxplot.png')
 
     plt.clf()
-    print('boxplot image saved')
+    print('boxplot image saved in ', filename)
     return solutions
 
 
@@ -230,7 +223,3 @@ def get_qc_depth(evaluation_function, max_branches, gate_set, budget, roll_out_s
     qc_solutions = [d[0][i][-1] for i in range(n_iter)]  # leaf nodes
     depth = [qc.depth() for qc in qc_solutions]
     return depth
-
-
-# boxplot(roll_out_steps=1, rollout_type='classic', n_iter=10)
-plot_cost(evaluation_function=sudoku2x2, branches=False, budget=1000, roll_out_steps=1, rollout_type='classic', n_iter=10)
