@@ -41,17 +41,17 @@ class Node:
         """
         if isinstance(branches, bool):
             # Progressive Widening Techniques: adaptive number of branches
+
+            t = self.visits
+            k = np.ceil(C * (t ** alpha))
             if not branches:
                 # Progressive Widening for discrete action space
-                if self.visits > 0:
-                    t = self.visits
-                else:
-                    t = 1
-                k = np.ceil(C*(t**alpha))
                 return len(self.children) >= k
+
             else:
                 # Progressive Widening for continuous action space
                 raise NotImplementedError
+
         elif isinstance(branches, int):
             # The number of the tree's branches is fixed
             return len(self.children) >= branches
@@ -147,9 +147,13 @@ def modify_prob_choice(dictionary, len_qc, stop_happened=True):
 
 def mcts(root, budget, evaluation_function, rollout_type, roll_out_steps, branches, choices, verbose=False):
     prob_choice = {'a': 100, 'd': 0, 's': 0, 'c': 0, 'p': 0}
+
     if verbose:
         print('Root Node: \n', root.state.circuit)
+
     epoch_counter = 0
+    evaluate(root, evaluation_function)
+    root.visits = 1
 
     for _ in range(budget):
         current_node = root
