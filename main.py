@@ -1,7 +1,7 @@
 import save_in_file as sif
-from problems.evaluation_functions import h2, vqls_1, sudoku2x2
+from problems.evaluation_functions import h2, vqls_1, sudoku2x2, vqls_0
 
-eval_func = [h2]
+eval_func = [vqls_1]
 N_ITER = 10
 
 BUDGET = [1000, 2000, 5000, 10000, 50000, 100000, 200000]
@@ -12,7 +12,7 @@ p = {'a': 50, 'd': 10, 's': 20, 'c': 20, 'p': 0}
 MAX_DEPTH = 20      # Chosen by the hardware
 
 plot = [True, True]
-run = False
+run = True
 
 for r in ROSTEPS:
     for f in eval_func:
@@ -23,8 +23,8 @@ for r in ROSTEPS:
                         if f == sudoku2x2:
                             r = 0
                             sif.data(evaluation_function=f, variable_qubits=5, ancilla_qubits=0, gate_set='continuous',
-                                         budget=b, branches=m, max_depth=MAX_DEPTH, roll_out_steps=r, iteration=i, choices=p,
-                                         verbose=True)
+                                     budget=b, branches=m, max_depth=MAX_DEPTH, roll_out_steps=r, iteration=i, choices=p,
+                                     verbose=True)
                         else:
                             sif.data(evaluation_function=f, variable_qubits=4, ancilla_qubits=0, gate_set='continuous',
                                      rollout_type=ROTYPE, budget=b, branches=m, roll_out_steps=r, iteration=i, max_depth=MAX_DEPTH,

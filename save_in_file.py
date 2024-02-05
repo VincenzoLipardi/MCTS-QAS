@@ -15,7 +15,7 @@ def get_filename(evaluation_function, budget, branches, iteration, image, gate_s
 
     ro = ''
     ros = ''
-    if evaluation_function == h2 or evaluation_function == vqls_1:
+    if evaluation_function != sudoku2x2:
         ro = 'rollout_' + rollout_type + '/'
         ros = '_rsteps_' + str(roll_out_steps)
     if isinstance(branches, bool):
@@ -47,7 +47,7 @@ def data(evaluation_function, variable_qubits, ancilla_qubits, budget, max_depth
     :param max_depth: int. Max depth of the quantum circuit
     :param iteration: int. Number of the indipendent run.
     :param branches: bool or int. If True progressive widening implemented. If int the number of maximum branches is fixed.
-    :param rollout_type: str. classic evaluates the final quantum circuit got after rollout. max takes the best reward get from all the states in the rollout path
+    :param rollout_type: str. classic evaluates the final quantum circuit got after rollout. rollout_max takes the best reward get from all the states in the rollout path
     :param roll_out_steps: int Number of moves for the rollout.
     :param verbose: bool. True if you want to print out the algorithm results online.
     """

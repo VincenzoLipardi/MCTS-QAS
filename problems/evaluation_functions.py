@@ -74,9 +74,31 @@ def h2(quantum_circuit, ansatz='all', cost=False):
         return H2().getReward(params=[0.1], quantum_circuit=quantum_circuit, ansatz=ansatz)
 
 
+def vqls_0(quantum_circuit, ansatz='all', cost=False):
+
+    # Instance shown in pennylane demo: https://pennylane.ai/qml/demos/tutorial_vqls/
+    problem = VQLS(c=[1, 0.2, 0.2])
+
+    if cost:
+        return problem.costFunc(params=[0.1], quantum_circuit=quantum_circuit, ansatz=ansatz)
+    else:
+        return problem.getReward(params=[0.1], quantum_circuit=quantum_circuit, ansatz=ansatz)
+
+
 def vqls_1(quantum_circuit, ansatz='all', cost=False):
 
     # Define the problem A = c_0 I + c_1 X_1 + c_2 X_2 + c_3 Z_3 Z_4
+    problem = VQLS(c=[1, 0.1, 0.1, 0.2])
+
+    if cost:
+        return problem.costFunc(params=[0.1], quantum_circuit=quantum_circuit, ansatz=ansatz)
+    else:
+        return problem.getReward(params=[0.1], quantum_circuit=quantum_circuit, ansatz=ansatz)
+
+
+def vqls_2(quantum_circuit, ansatz='all', cost=False):
+
+    # Particle Tracking Reconstruction
     problem = VQLS(c=[1, 0.1, 0.1, 0.2])
 
     if cost:

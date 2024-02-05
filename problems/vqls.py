@@ -39,15 +39,24 @@ class VQLS:
         elif idx == 1:
             # X_0
             qml.CNOT(wires=[self.ancilla_idx, 0])
+            if len(self.c) == 3:
+                qml.CZ(wires=[self.ancilla_idx, 1])
 
         elif idx == 2:
             # X_1
-            qml.CNOT(wires=[self.ancilla_idx, 1])
+            if len(self.c) == 4:
+                qml.CNOT(wires=[self.ancilla_idx, 1])
+            elif len(self.c) == 3:
+                qml.CNOT(wires=[self.ancilla_idx, 0])
+
 
         elif idx == 3:
-            # Z_2 Z_3
-            qml.CZ(wires=[self.ancilla_idx, 2])
-            qml.CZ(wires=[self.ancilla_idx, 3])
+            if len(self.c) == 4:
+                # Z_2 Z_3
+                qml.CZ(wires=[self.ancilla_idx, 2])
+                qml.CZ(wires=[self.ancilla_idx, 3])
+            else:
+                pass
 
     def variational_block(self, params, quantum_circuit, ansatz):
         """Variational circuit mapping the ground state |0> to the ansatz state |x>."""
