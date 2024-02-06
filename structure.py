@@ -3,6 +3,8 @@ import math
 import numpy as np
 from qiskit import QuantumCircuit, QuantumRegister
 from qiskit.circuit.library import RYGate, RXGate, RZGate, HGate, CXGate
+from qiskit.quantum_info import Operator
+
 
 class Circuit:
     def __init__(self, variable_qubits, ancilla_qubits, initialization=None):
@@ -49,14 +51,11 @@ class Circuit:
         reward = evaluation_function(self.circuit)
         return reward
 
-    def get_legal_action(self, gate_set, max_depth, prob_choice, stop):
-        if stop:
-            prob_choice['p'] = 0
+    def get_legal_action(self, gate_set, max_depth, prob_choice):
         if self.is_nisq is None:
             self.nisq_control(max_depth)
         if not self.is_nisq:
             prob_choice['a'] = 0
-            prob_choice['d'] = 50
 
         keys = list(prob_choice.keys())
         probabilities = list(prob_choice.values())
@@ -73,8 +72,7 @@ def get_action_from_str(input_string, gate_set):
         'a': gate_set.add_gate,
         'd': gate_set.delete_gate,
         's': gate_set.swap,
-        'c': gate_set.change,
-        'p': gate_set.stop}
+        'c': gate_set.change}
 
     # Choose the method based on the input string
     chosen_method = method_mapping.get(input_string, None)
@@ -192,10 +190,6 @@ class GateSet:
         qc.data[position][0].params[0] = gate_to_change.params[0] + random.uniform(0, 0.2)
         return qc
 
-    @staticmethod
-    def stop(quantum_circuit):
-        return 'stop'
-
 
 def get_gate(gate_str, angle=None):
     """
@@ -213,3 +207,10 @@ def get_gate(gate_str, angle=None):
         return RYGate(theta=angle)
     elif gate_str == 'rz':
         return RZGate(phi=angle)
+
+
+def check_equivalence(qc1, qc2):
+    """ It returns a boolean variable. True if the two input quantum circuits are equivalent (same matrix)eqi"""
+    Op1 = Operator(qc1)
+    Op2 = Operator(qc2)
+    return Op1.equiv(Op2)

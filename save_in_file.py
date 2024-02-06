@@ -61,7 +61,7 @@ def data(evaluation_function, variable_qubits, ancilla_qubits, budget, max_depth
     root = mcts.Node(Circuit(variable_qubits=variable_qubits, ancilla_qubits=ancilla_qubits), max_depth=max_depth)
     final_state = mcts.mcts(root, budget=budget, branches=branches, evaluation_function=evaluation_function, rollout_type=rollout_type, roll_out_steps=roll_out_steps, choices=choices, verbose=verbose)
 
-    filename = get_filename(evaluation_function, budget, branches, iteration, gate_set=gate_set, rollout_type=rollout_type, roll_out_steps=roll_out_steps, image=False)
+    filename = get_filename(evaluation_function, budget=budget, branches=branches, iteration=iteration, gate_set=gate_set, rollout_type=rollout_type, roll_out_steps=roll_out_steps, image=False)
 
     df = pd.DataFrame(final_state)
     df.to_pickle(os.path.join(filename + '.pkl'))

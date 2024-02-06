@@ -1,5 +1,7 @@
+import random
+
 import numpy as np
-from structure import Circuit, GateSet
+from structure import Circuit, GateSet, check_equivalence
 from qiskit import QuantumCircuit
 
 
@@ -32,27 +34,23 @@ class Node:
         self.stop_is_done = False
         self.action = None
 
-    def is_fully_expanded(self, branches, C=1, alpha=0.3):
+    def is_fully_expanded(self, branches, C=1, alpha=0.5):
         """
+        :param branches: int or boolean. If true, progressive widening. if int the maximum number of branches is fixed.
         :param alpha: float (in [0,1]). Have to be chosen close to 1 in  strongly stochastic domains, close to 0 ow
         :param C: int. Hyperparameter
-        :param branches: int or boolean. If true, progressive widening. if int the maximum number of branches is fixed.
         :return: Boolean. True if the node is a leaf. False otherwise.
         """
         if isinstance(branches, bool):
             # Progressive Widening Techniques: adaptive number of branches
-
             t = self.visits
             k = np.ceil(C * (t ** alpha))
             if not branches:
                 # Progressive Widening for discrete action space
                 return len(self.children) >= k
-
             else:
-                # Progressive Widening for continuous action space
-                raise NotImplementedError
-
-        elif isinstance(branches, int):
+                raise NotImplementedError   # Double Progressive Widening for Stochastic transistions
+        elif isinstance(branches, int):     # Vanilla MCTS
             # The number of the tree's branches is fixed
             return len(self.children) >= branches
         else:
@@ -67,34 +65,34 @@ class Node:
 
         parent = self
         qc = parent.state.circuit.copy()
-        stop = self.stop_is_done
-        if roll_out:
-            stop = True
-        new_qc = parent.state.get_legal_action(GateSet(self.gate_set), self.max_depth, prob_choice, stop)(qc)
-        if new_qc == 'stop':
-            # It means that get_legal_actions returned the STOP action, then we define this node as Terminal
-            self.isTerminal = True
-            self.stop_is_done = True
-            return self
-        else:
 
-            while new_qc is None:
-                # It chooses to change parameters, but there are no parametrized gates. Or delete in a very shallow circuit
-                new_qc = parent.state.get_legal_action(GateSet(self.gate_set), self.max_depth, prob_choice, stop)(qc)
+        new_qc = parent.state.get_legal_action(GateSet(self.gate_set), self.max_depth, prob_choice)(qc)
+        while check_equivalence(qc, new_qc):
+            new_qc = parent.state.get_legal_action(GateSet(self.gate_set), self.max_depth, prob_choice)(qc)
 
-            if isinstance(new_qc, QuantumCircuit):
-                new_state = Circuit(4, 1).building_state(new_qc)
-                new_child = Node(new_state, max_depth=self.max_depth, parent=self)
-                if not roll_out:
-                    self.children.append(new_child)
-                return new_child
-            else:
-                raise TypeError
+        if new_qc is None:
+            # It chose to change parameters, but there are no parametrized gates. Or delete in a very shallow circuit,
+            # then let's prevent this by allowing only the adding and swapping action
+            temporary_prob_choice = {'a': 50, 's': 50, 'c': 0, 'd': 0}
+            new_qc = parent.state.get_legal_action(GateSet(self.gate_set), self.max_depth, temporary_prob_choice)(qc)
+
+        return node_from_qc(new_qc, parent_node=self, roll_out=roll_out)
 
     def best_child(self):
         children_with_values = [(child, child.value)
                                 for child in self.children]
         return max(children_with_values, key=lambda x: x[1])[0]
+
+
+def node_from_qc(quantum_circuit, parent_node, roll_out):
+    if isinstance(quantum_circuit, QuantumCircuit):
+        new_state = Circuit(4, 1).building_state(quantum_circuit)
+        new_child = Node(new_state, max_depth=parent_node.max_depth, parent=parent_node)
+        if not roll_out:
+            parent_node.children.append(new_child)
+        return new_child
+    else:
+        raise TypeError
 
 
 def select(node, exploration=1.0):
@@ -106,13 +104,15 @@ def select(node, exploration=1.0):
 
 def expand(node, prob_choice):
     new_node = node.define_children(prob_choice=prob_choice)
-    return new_node
+    stop_node = node_from_qc(new_node.state.circuit, new_node, roll_out=False)
+    stop_node.isTerminal = True
+    return stop_node
 
 
 def rollout(node, steps):
     new_node = node
     for i in range(steps):
-        new_node = new_node.define_children(prob_choice={'a': 10, 'd': 10, 's': 40, 'c': 40, 'p': 0}, roll_out=True)
+        new_node = new_node.define_children(prob_choice={'a': 10, 'd': 10, 's': 40, 'c': 40}, roll_out=True)
     return new_node
 
 
@@ -127,15 +127,13 @@ def backpropagate(node, result):
         node = node.parent
 
 
-def modify_prob_choice(dictionary, len_qc, stop_happened=True):
+def modify_prob_choice(dictionary, len_qc):
 
     keys = list(dictionary.keys())
     values = list(dictionary.values())
 
     modifications = [-40, 10, 10, 10, 10]
     modified_values = [max(0, v + m) for v, m in zip(values, modifications)]
-    if stop_happened:
-        modified_values[-1] = 0
     if len_qc < 6:
         modified_values[1] = 0
     # Normalize to ensure the sum is still 100
@@ -146,7 +144,7 @@ def modify_prob_choice(dictionary, len_qc, stop_happened=True):
 
 
 def mcts(root, budget, evaluation_function, rollout_type, roll_out_steps, branches, choices, verbose=False):
-    prob_choice = {'a': 100, 'd': 0, 's': 0, 'c': 0, 'p': 0}
+    prob_choice = {'a': 100, 'd': 0, 's': 0, 'c': 0}
 
     if verbose:
         print('Root Node: \n', root.state.circuit)
@@ -157,9 +155,19 @@ def mcts(root, budget, evaluation_function, rollout_type, roll_out_steps, branch
 
     for _ in range(budget):
         current_node = root
-        if epoch_counter > 1:
-            while current_node.best_child().visits >= budget/20:
+        if epoch_counter > 10:
+            coin = random.uniform(0, 1)
+            visits = [node.visits for node in current_node.children]
+            eps = max(visits) / sum(visits)
+
+            while coin < eps and current_node.visits > 100:
                 current_node = current_node.best_child()
+                coin = random.uniform(0, 1)
+                visits = [node.visits for node in current_node.children]
+                eps = max(visits) / sum(visits)
+
+            """while current_node.best_child().visits >= budget/20:
+                current_node = current_node.best_child()"""
         if verbose:
             print('Epoch Counter: ', epoch_counter)
 
@@ -174,10 +182,11 @@ def mcts(root, budget, evaluation_function, rollout_type, roll_out_steps, branch
         if not current_node.isTerminal:
             current_node = expand(current_node, prob_choice=prob_choice)
             if verbose:
-                print("Tree expanded. Node's depth in the tree: ", current_node.tree_depth, '.\nQuantum circuit:\n', current_node.state.circuit)
+                print("Tree expanded. Node's depth in the tree: ", current_node.tree_depth, '.\nQuantum circuit:\n',
+                      current_node.state.circuit)
 
         # Simulation
-        if not current_node.isTerminal:
+        """if not current_node.isTerminal:
             if isinstance(roll_out_steps, int):
                 leaf_node = rollout(current_node, steps=roll_out_steps)
                 result = evaluate(leaf_node, evaluation_function)
@@ -186,23 +195,24 @@ def mcts(root, budget, evaluation_function, rollout_type, roll_out_steps, branch
                     node_to_evaluate = leaf_node
                     for _ in range(roll_out_steps):
                         result_list.append(evaluate(node_to_evaluate.parent, evaluation_function))
-                    result = max(result_list)
-
+                    result = max(result_list)        
             else:
                 if verbose:
-                    print('No rollout')
-                result = evaluate(current_node, evaluation_function)
-        else:
-            result = evaluate(current_node, evaluation_function)
-            print('It is a terminal node, evaluation done')
+                    print('No rollout')"""
+
+
+        result = evaluate(current_node, evaluation_function)
+        print('It is a terminal node, evaluation done')
         if verbose:
             print('Simulation done. Reward: ', result)
+
         # Backpropagation
         backpropagate(current_node, result)
         epoch_counter += 1
         n_qubits = len(current_node.state.circuit.qubits)
         if current_node.tree_depth == 2*n_qubits:
             prob_choice = choices
+
 
     print('Last epoch:', epoch_counter)
 
