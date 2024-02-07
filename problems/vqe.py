@@ -3,6 +3,7 @@ from pennylane import numpy as np
 from qiskit import QuantumCircuit
 
 
+
 class H2:
     # https://pennylane.ai/qml/demos/tutorial_vqe/
     def __init__(self, name='', geometry=None):
@@ -34,7 +35,6 @@ class H2:
         """
         Energy of the molecule that we have to minimize
         """
-
         def circuit(parameters):
             # Standard Ansatz for h2 molecule (Hatree-Fock state when parameter =0)
 
@@ -45,6 +45,7 @@ class H2:
 
         def circuit_input(parameters):
             qml.BasisState(self.hf, wires=self.wires)
+
             i = 0
             for instr, qubits, clbits in quantum_circuit.data:
                 name = instr.name.lower()
@@ -70,6 +71,7 @@ class H2:
                     qml.Hadamard(wires=qubits[0].index)
                 elif name == "cx":
                     qml.CNOT(wires=[qubits[0].index, qubits[1].index])
+
 
         @qml.qnode(self.dev, interface="autograd")
         def cost_fn(parameters):
@@ -112,4 +114,46 @@ class H2:
         print("\n" f"Final value of the ground-state energy = {energy[-1]:.8f} Ha")
         # print("\n" f"Optimal value of the circuit parameter = {angle[-1]:.4f}")
         return energy
+
+    def gradient_descent(self, quantum_circuit):
+        opt = qml.AdamOptimizer()
+        parameters = get_parameters(quantum_circuit)
+        theta = np.array(parameters, requires_grad=True)
+        # store the values of the cost function
+        energy = [self.costFunc(theta, quantum_circuit=quantum_circuit)]
+
+        # store the values of the circuit parameter
+        angle = [theta]
+
+        max_iterations = 11
+        conv_tol = 1e-06
+
+        for n in range(max_iterations):
+            theta, prev_energy = opt.step_and_cost(self.costFunc(quantum_circuit=quantum_circuit), theta)
+            energy.append(self.costFunc(theta, quantum_circuit=quantum_circuit, ansatz=''))
+            angle.append(theta)
+
+            conv = np.abs(energy[-1] - prev_energy)
+
+            if n % 2 == 0:
+                print(f"Step = {n},  Energy = {energy[-1]:.8f} Ha")
+
+            if conv <= conv_tol:
+                break
+
+        print("\n" f"Final value of the ground-state energy = {energy[-1]:.8f} Ha")
+        # print("\n" f"Optimal value of the circuit parameter = {angle[-1]:.4f}")
+        return energy
+
+
+def get_parameters(quantum_circuit):
+    parameters = set()
+
+    # Iterate over all gates in the circuit
+    for instr, qargs, cargs in quantum_circuit.data:
+        # Extract parameters from gate instructions
+        for param in instr.params:
+            parameters.add(param)
+    return list(parameters)[::-1]
+
 

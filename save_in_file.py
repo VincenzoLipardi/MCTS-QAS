@@ -54,7 +54,7 @@ def data(evaluation_function, variable_qubits, ancilla_qubits, budget, max_depth
     if isinstance(choices, dict):
         pass
     elif isinstance(choices, list):
-        choices = {'a': choices[0], 'd': choices[1], 's': choices[2], 'c': choices[3], 'p': choices[4]}
+        choices = {'a': choices[0], 'd': choices[1], 's': choices[2], 'c': choices[3]}
     else:
         raise TypeError
 
@@ -107,6 +107,15 @@ def get_benchmark(evaluation_function):
         return 0
 
 
+def best_in_path(evaluation_function, branches, budget, roll_out_steps, rollout_type, n_iter):
+    d = get_paths(evaluation_function, branches, budget, roll_out_steps, rollout_type, n_iter)[0]
+
+    cost_overall = []
+    for i in range(n_iter):
+        cost = list(map(lambda x: evaluation_function(x, cost=True), d[i]))
+        cost_overall.append(min(cost).numpy())
+    return cost_overall
+
 
 def plot_cost(evaluation_function, branches, budget, roll_out_steps, rollout_type, n_iter):
     """It saves the convergence plot of the cost vs tree depth"""
@@ -119,7 +128,6 @@ def plot_cost(evaluation_function, branches, budget, roll_out_steps, rollout_typ
     plt.xlabel('Tree Depth')
     plt.ylabel('Cost')
     plt.xticks(indices)
-
     for i in range(n_iter):
         cost = list(map(lambda x: evaluation_function(x, cost=True), d[i]))
         plt.plot(list(range(len(cost))), cost, marker='o', linestyle='-', label=str(i+1))
@@ -131,7 +139,7 @@ def plot_cost(evaluation_function, branches, budget, roll_out_steps, rollout_typ
         plt.axhline(y=benchmark_value, color='r', linestyle='--', label=f'bench_FCI({round(benchmark_value, 3)})')
     filename = get_filename(evaluation_function=evaluation_function, branches=branches, image=True, roll_out_steps=roll_out_steps, rollout_type=rollout_type, iteration=0, budget=budget) + '_budget_'+str(budget)
     plt.legend(loc='best')
-    plt.title(evaluation_function.__name__+ ' - Budget  '+str(budget))
+    plt.title(evaluation_function.__name__ + ' - Budget  '+str(budget))
 
     plt.savefig(filename + '_cost.png')
     print('Cost Plot image saved in ', filename)
@@ -154,10 +162,10 @@ def plot_oracle(evaluation_function, max_branches, gate_set, budget, roll_out_st
     plt.clf()
 
 
-def boxplot(evaluation_function, branches, roll_out_steps, rollout_type, n_iter):
+def boxplot(evaluation_function, branches, roll_out_steps, rollout_type, n_iter, best=True):
     """ Save a boxplot image, with the stats on the n_iter independent runs vs the budget of mcts"""
     solutions = []
-    BUDGET = [1000, 2000, 5000, 10000, 50000, 100000, 200000]
+    BUDGET = [1000, 2000, 5000, 10000, 50000, 100000]
 
     # Gate Data
     for budget in BUDGET:
@@ -166,8 +174,13 @@ def boxplot(evaluation_function, branches, roll_out_steps, rollout_type, n_iter)
             break
         qc_solutions = [d[i][-1] for i in range(n_iter)]   # leaf nodes
         if evaluation_function == h2 or evaluation_function == vqls_1:
-            sol = list(map(lambda x: evaluation_function(x, cost=True), qc_solutions))
-            solutions.append([x.numpy() for x in sol])
+            if best:
+                sol = best_in_path(evaluation_function, branches, budget, roll_out_steps, rollout_type, n_iter)
+
+                solutions.append(sol)
+            else:
+                sol = list(map(lambda x: evaluation_function(x, cost=True), qc_solutions))
+                solutions.append([x.numpy() for x in sol])
         elif evaluation_function == sudoku2x2:
             gates = [qc.to_gate(label='Oracle Approx') for qc in qc_solutions]
 
@@ -182,7 +195,7 @@ def boxplot(evaluation_function, branches, roll_out_steps, rollout_type, n_iter)
                     pass
 
             solutions.append([x['1001'] + x['0110'] for x in counts_approx])
-        print(budget)
+        print('Boxplot created at budget: ', budget)
 
     # Plotting
     lab = [str(b) for b in BUDGET]
@@ -211,6 +224,8 @@ def boxplot(evaluation_function, branches, roll_out_steps, rollout_type, n_iter)
     plt.title(evaluation_function.__name__)
     plt.xlabel('MCTS Simulations')
     plt.legend()
+    if best:
+        filename = filename+'_best'
     plt.savefig(filename + '_boxplot.png')
 
     plt.clf()
@@ -223,3 +238,15 @@ def get_qc_depth(evaluation_function, max_branches, gate_set, budget, roll_out_s
     qc_solutions = [d[0][i][-1] for i in range(n_iter)]  # leaf nodes
     depth = [qc.depth() for qc in qc_solutions]
     return depth
+
+
+def add_gradient_descent_column(evaluation_function, budget, iteration, branches, gate_set='continuous', rollout_type="classic", roll_out_steps=None):
+    for i in range(iteration):
+        filename = get_filename(evaluation_function, budget, branches, iteration=i, gate_set=gate_set, rollout_type=rollout_type, roll_out_steps=roll_out_steps, image=False)
+        d = get_paths(evaluation_function, branches, budget, roll_out_steps, rollout_type)[0]
+        df = pd.read_pickle(filename + '.pkl')
+
+        df.insert(-1, "Adam", data, True)
+        df.to_pickle(os.path.join(filename + 'prova.pkl'))
+
+
