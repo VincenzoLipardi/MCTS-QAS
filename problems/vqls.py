@@ -3,6 +3,7 @@ from pennylane import numpy as np
 import math
 
 
+
 class VQLS:
     # https://pennylane.ai/qml/demos/tutorial_vqls/
     def __init__(self, c):
@@ -179,6 +180,40 @@ class VQLS:
     def getReward(self, params, quantum_circuit=None, ansatz=''):
         return np.exp(-10*self.costFunc(params, quantum_circuit, ansatz))
 
+    def gradient_descent(self, quantum_circuit):
+        opt = qml.AdamOptimizer()
+        parameters = get_parameters(quantum_circuit)
+        theta = np.array(parameters, requires_grad=True)
+
+        # store the values of the cost function
+
+        def prova(params):
+            return self.costFunc(params=params, quantum_circuit=quantum_circuit, ansatz='')
+
+        cost = [prova(theta)]
+
+        # store the values of the circuit parameter
+        angle = [theta]
+
+        max_iterations = 200
+        conv_tol = 1e-08  # default -06
+
+        for n in range(max_iterations):
+            theta, prev_energy = opt.step_and_cost(prova, theta)
+            cost.append(prova(theta))
+            angle.append(theta)
+
+            conv = np.abs(cost[-1] - prev_energy)
+
+            if n % 2 == 0:
+                print(f"Step = {n},  Cost = {cost[-1]:.8f}")
+
+            if conv <= conv_tol:
+                print('Landscape is flat')
+                break
+        return cost
+
+
     def getClassicalSolution(self):
         Id = np.identity(2)
         Z = np.array([[1, 0], [0, -1]])
@@ -222,3 +257,14 @@ class VQLS:
         q_probs = np.bincount(samples) / self.n_shots
 
         return q_probs
+
+
+def get_parameters(quantum_circuit):
+    parameters = []
+    # Iterate over all gates in the circuit
+    for instr, qargs, cargs in quantum_circuit.data:
+
+        # Extract parameters from gate instructions
+        if len(instr.params) > 0:
+            parameters.append(instr.params[0])
+    return parameters

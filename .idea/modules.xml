@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/MCTS-QAS.iml" filepath="$PROJECT_DIR$/.idea/MCTS-QAS.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../QAS/.idea/QAS.iml" filepath="$PROJECT_DIR$/../QAS/.idea/QAS.iml" />
     </modules>
   </component>
 </project>

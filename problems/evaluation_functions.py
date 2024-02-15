@@ -1,39 +1,58 @@
 from problems.oracles.grover import grover
-from problems.vqe import H2
+from problems.vqe import H2, LiH, H2O
 from problems.vqls import VQLS
+from problems.oracles.qc_regeneration import quantum_circuit_regeneration
 import heapq
 from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister, Aer, transpile
 
 
-# Evaluation Function for the Grover Oracle
-def sudoku2x2(quantum_circuit, n_solutions=2):
+# ORACLE APPROXIMATION
+def qc_regeneration(quantum_circuit):
+    reward = quantum_circuit_regeneration(quantum_circuit=quantum_circuit, filename='oracles/dataset/regeneration_clifford')
+    N = 2**len(quantum_circuit.qubits)
+    reward = reward/N**2
+    return reward
+
+
+# Evaluation Function for the Grover's Oracle (Sudoku 2x2)
+def sudoku2x2(quantum_circuit, n_solutions=2, gradient=False):
     """ Oracle Approximation
+    :param gradient: bool. If True it applies gradient descent over the parameters of the quantum circuit in input
     :param quantum_circuit: quantum circuit approximating a quantum oracle
     :param n_solutions: We are supposed to know the number of solutions of the problem
     :return: float. Reward
     """
-    gate = quantum_circuit.to_gate(label='Oracle Approx')
-    # n_iteration have to be generalised has np.pi/4*(np.sqrt(N/M))
-    counts = grover.grover_algo(oracle='approximation', oracle_gate=gate, iterations=2, ancilla=1)
-    tot_counts = sum(counts.values())
-    best_counts = heapq.nlargest(n_solutions, counts.values())
-    solution = [i for i in counts if counts[i] in best_counts]
-    reward = 0
-    for sol in solution:
-        if check_constraints(sol):
-            if counts[sol] <= tot_counts / 2:
-                reward += counts[sol] / tot_counts
-            else:
-                reward += tot_counts/2
-    return reward
+    def reward_func():
+        gate = quantum_circuit.to_gate(label='Oracle Approx')
+        # n_iteration have to be generalised has np.pi/4*(np.sqrt(N/M))
+        counts = grover.grover_algo(oracle='approximation', oracle_gate=gate, iterations=2, ancilla=1)
+        tot_counts = sum(counts.values())
+        best_counts = heapq.nlargest(n_solutions, counts.values())
+        solution = [i for i in counts if counts[i] in best_counts]
+
+        def check_constraints(solution):
+            values = [int(i) for i in solution]
+            return values[0] != values[1] and values[1] != values[3] and values[2] != values[3]
+        print(solution)
+        reward = 0
+        for sol in solution:
+            if check_constraints(sol):
+                if counts[sol] <= tot_counts / 2:
+                    reward += counts[sol] / tot_counts
+                else:
+                    reward += tot_counts/2
+        return reward
+
+    def gradient_descent():
+        return 0
+
+    if gradient:
+        return gradient_descent()
+    else:
+        return reward_func()
 
 
-# Sudoku 2x2
-def check_constraints(solution):
-    values = [int(i) for i in solution]
-    return values[0] != values[1] and values[1] != values[3] and values[2] != values[3]
-
-
+# Oracle for A. Montanaro Quantum Monte Carlo
 def oracle_function(quantum_circuit, function, x, shots):
     """
     It evaluates the approximation of qc to be a quantum gate W such that W|x>|0>= |x>(sqrt(R(x))|0> + sqrt(1-R(x))|1>)
@@ -67,13 +86,44 @@ def oracle_function(quantum_circuit, function, x, shots):
     return reward
 
 
-def h2(quantum_circuit, ansatz='all', cost=False):
+# QUANTUM CHEMISTRY MODELS
+def h2(quantum_circuit, ansatz='all', cost=False, gradient=False):
+    problem =H2()
+    if cost and gradient:
+        raise ValueError('Cannot return both cost/reward and gradient descent result')
+    if gradient:
+        return problem.gradient_descent(quantum_circuit=quantum_circuit)
     if cost:
-        return H2().costFunc(params=[0.1], quantum_circuit=quantum_circuit, ansatz=ansatz)
+        return problem.costFunc(params=[0.1], quantum_circuit=quantum_circuit, ansatz=ansatz)
     else:
-        return H2().getReward(params=[0.1], quantum_circuit=quantum_circuit, ansatz=ansatz)
+        return problem.getReward(params=[0.1], quantum_circuit=quantum_circuit, ansatz=ansatz)
 
 
+def lih(quantum_circuit, ansatz='all', cost=False, gradient=False):
+    problem = LiH()
+    if cost and gradient:
+        raise ValueError('Cannot return both cost/reward and gradient descent result')
+    if gradient:
+        return problem.gradient_descent(quantum_circuit=quantum_circuit)
+    if cost:
+        return problem.costFunc(params=[0.1], quantum_circuit=quantum_circuit, ansatz=ansatz)
+    else:
+        return problem.getReward(params=[0.1], quantum_circuit=quantum_circuit, ansatz=ansatz)
+
+
+def h2o(quantum_circuit, ansatz='all', cost=False, gradient=False):
+    problem = H2O()
+    if cost and gradient:
+        raise ValueError('Cannot return both cost/reward and gradient descent result')
+    if gradient:
+        return problem.gradient_descent(quantum_circuit=quantum_circuit)
+    if cost:
+        return problem.costFunc(params=[0.1], quantum_circuit=quantum_circuit, ansatz=ansatz)
+    else:
+        return problem.getReward(params=[0.1], quantum_circuit=quantum_circuit, ansatz=ansatz)
+
+
+# SYSTEMS OF LINEAR EQUATIONS
 def vqls_0(quantum_circuit, ansatz='all', cost=False):
 
     # Instance shown in pennylane demo: https://pennylane.ai/qml/demos/tutorial_vqls/
@@ -85,26 +135,15 @@ def vqls_0(quantum_circuit, ansatz='all', cost=False):
         return problem.getReward(params=[0.1], quantum_circuit=quantum_circuit, ansatz=ansatz)
 
 
-def vqls_1(quantum_circuit, ansatz='all', cost=False):
-
+def vqls_1(quantum_circuit, ansatz='all', cost=False, gradient=False):
     # Define the problem A = c_0 I + c_1 X_1 + c_2 X_2 + c_3 Z_3 Z_4
     problem = VQLS(c=[1, 0.1, 0.1, 0.2])
 
+    if cost and gradient:
+        raise ValueError('Cannot return both cost and gradient descent result')
+    if gradient:
+        return problem.gradient_descent(quantum_circuit=quantum_circuit)
     if cost:
         return problem.costFunc(params=[0.1], quantum_circuit=quantum_circuit, ansatz=ansatz)
     else:
         return problem.getReward(params=[0.1], quantum_circuit=quantum_circuit, ansatz=ansatz)
-
-
-def vqls_2(quantum_circuit, ansatz='all', cost=False):
-
-    # Particle Tracking Reconstruction
-    problem = VQLS(c=[1, 0.1, 0.1, 0.2])
-
-    if cost:
-        return problem.costFunc(params=[0.1], quantum_circuit=quantum_circuit, ansatz=ansatz)
-    else:
-        return problem.getReward(params=[0.1], quantum_circuit=quantum_circuit, ansatz=ansatz)
-
-
-

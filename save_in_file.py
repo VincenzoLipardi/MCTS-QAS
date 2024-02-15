@@ -1,16 +1,18 @@
 import mcts
 import pandas as pd
+import math
 import os.path
 import numpy as np
 from structure import Circuit
 import matplotlib.pyplot as plt
-from problems.evaluation_functions import h2, vqls_1, sudoku2x2
-from problems.vqe import H2
+from problems.evaluation_functions import h2, vqls_1, sudoku2x2,h2o,lih
 from problems.oracles.grover.grover import grover_algo
 from qiskit.visualization import plot_histogram
+from problems.vqe import H2
 
 
-def get_filename(evaluation_function, budget, branches, iteration, image, gate_set='continuous', rollout_type="classic", roll_out_steps=None):
+
+def get_filename(evaluation_function, budget, branches, iteration, epsilon, gradient, image, gate_set='continuous', rollout_type="classic", roll_out_steps=None):
     """ it creates the string of the file name that have to be saved or read"""
 
     ro = ''
@@ -27,17 +29,25 @@ def get_filename(evaluation_function, budget, branches, iteration, image, gate_s
         branch = 'bf_' + str(branches)
     else:
         raise TypeError
+    grad, eps = '', ''
+    if epsilon is not None:
+        eps = '_eps_'+str(epsilon)
+
+    if gradient:
+        grad = '_comp'
+
     if image:
-        filename = 'experiments/' + evaluation_function.__name__ + '/' + gate_set + '/' + ro+branch + ros
+        filename = 'experiments/' + evaluation_function.__name__ + '/' + gate_set + '/' + ro+'images/'+branch + eps + ros + grad
     else:
-        filename = 'experiments/' + evaluation_function.__name__ + '/' + gate_set + '/' + ro + branch + '_budget_' + str(
-            budget) + ros + '_run_' + str(iteration)
+        filename = 'experiments/' + evaluation_function.__name__ + '/' + gate_set + '/' + ro + branch + eps + '_budget_' + str(budget) + ros + '_run_' + str(iteration)+grad
     return filename
 
 
-def data(evaluation_function, variable_qubits, ancilla_qubits, budget, max_depth, iteration, branches, choices, gate_set='continuous', rollout_type="classic", roll_out_steps=None, verbose=True):
+def data(evaluation_function, variable_qubits, ancilla_qubits, budget, max_depth, iteration, branches, choices, epsilon, stop_deterministic, gate_set='continuous', rollout_type="classic", roll_out_steps=None, verbose=True):
     """
     It runs the mcts on the indicated problem and saves the result (the best path) in a .pkl file
+    :param stop_deterministic:
+    :param epsilon: float. probability to go random
     :param choices: dict. Probability over all the possible choices
     :param evaluation_function: func. It defines the problem, then the reward function for the mcts agent
     :param variable_qubits:int.  Number of qubits required for the problem
@@ -45,7 +55,7 @@ def data(evaluation_function, variable_qubits, ancilla_qubits, budget, max_depth
     :param gate_set: str.
     :param budget: int. resources allocated for the mcts search. MCTS iterations
     :param max_depth: int. Max depth of the quantum circuit
-    :param iteration: int. Number of the indipendent run.
+    :param iteration: int. Number of the independent run.
     :param branches: bool or int. If True progressive widening implemented. If int the number of maximum branches is fixed.
     :param rollout_type: str. classic evaluates the final quantum circuit got after rollout. rollout_max takes the best reward get from all the states in the rollout path
     :param roll_out_steps: int Number of moves for the rollout.
@@ -54,26 +64,27 @@ def data(evaluation_function, variable_qubits, ancilla_qubits, budget, max_depth
     if isinstance(choices, dict):
         pass
     elif isinstance(choices, list):
-        choices = {'a': choices[0], 'd': choices[1], 's': choices[2], 'c': choices[3]}
+        choices = {'a': choices[0], 'd': choices[1], 's': choices[2], 'c': choices[3], 'p': choices[4]}
     else:
         raise TypeError
 
     root = mcts.Node(Circuit(variable_qubits=variable_qubits, ancilla_qubits=ancilla_qubits), max_depth=max_depth)
-    final_state = mcts.mcts(root, budget=budget, branches=branches, evaluation_function=evaluation_function, rollout_type=rollout_type, roll_out_steps=roll_out_steps, choices=choices, verbose=verbose)
+    final_state = mcts.mcts(root, budget=budget, branches=branches, evaluation_function=evaluation_function, rollout_type=rollout_type, roll_out_steps=roll_out_steps,
+                            choices=choices, epsilon=epsilon, stop_deterministic=stop_deterministic, verbose=verbose)
 
-    filename = get_filename(evaluation_function, budget=budget, branches=branches, iteration=iteration, gate_set=gate_set, rollout_type=rollout_type, roll_out_steps=roll_out_steps, image=False)
+    filename = get_filename(evaluation_function, budget=budget, branches=branches, iteration=iteration, gate_set=gate_set, rollout_type=rollout_type, roll_out_steps=roll_out_steps, epsilon=epsilon, gradient=False, image=False)
 
     df = pd.DataFrame(final_state)
     df.to_pickle(os.path.join(filename + '.pkl'))
     return print("files saved in experiments/", evaluation_function.__name__, 'as ', filename)
 
 
-def get_paths(evaluation_function, branches, budget, roll_out_steps, rollout_type, n_iter=10, gate_set='continuous'):
+def get_paths(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, n_iter=10, gate_set='continuous'):
     """ It opens the .pkl files and returns quantum circuits along the best path """
     qc_along_path = []
     children, visits, value = [], [], []
     for i in range(n_iter):
-        filename = get_filename(evaluation_function, budget, branches, iteration=i, gate_set=gate_set, rollout_type=rollout_type, roll_out_steps=roll_out_steps, image=False)
+        filename = get_filename(evaluation_function, budget, branches, iteration=i, gate_set=gate_set, rollout_type=rollout_type, epsilon=epsilon, gradient=False, roll_out_steps=roll_out_steps, image=False)
         if os.path.isfile(filename+'.pkl'):
             df = pd.read_pickle(filename+'.pkl')
             qc_along_path.append([circuit for circuit in df['qc']])
@@ -107,19 +118,21 @@ def get_benchmark(evaluation_function):
         return 0
 
 
-def best_in_path(evaluation_function, branches, budget, roll_out_steps, rollout_type, n_iter):
-    d = get_paths(evaluation_function, branches, budget, roll_out_steps, rollout_type, n_iter)[0]
+def best_in_path(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, n_iter):
+    d = get_paths(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, n_iter)[0]
 
-    cost_overall = []
+    cost_overall, best_index = [], []
+
     for i in range(n_iter):
         cost = list(map(lambda x: evaluation_function(x, cost=True), d[i]))
         cost_overall.append(min(cost).numpy())
-    return cost_overall
+        best_index.append(cost.index(min(cost)))
+    return cost_overall, best_index
 
 
-def plot_cost(evaluation_function, branches, budget, roll_out_steps, rollout_type, n_iter):
+def plot_cost(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon,  n_iter, gradient=False):
     """It saves the convergence plot of the cost vs tree depth"""
-    d = get_paths(evaluation_function, branches, budget, roll_out_steps, rollout_type, n_iter)[0]
+    d = get_paths(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, n_iter=n_iter)[0]
     max_tree_depth = len(max(d, key=len))
     indices = list(range(max_tree_depth+2))
     if max_tree_depth > 20:
@@ -137,7 +150,7 @@ def plot_cost(evaluation_function, branches, budget, roll_out_steps, rollout_typ
         plt.yticks(np.arange(-1.2, 0.1, 0.1))
     if benchmark_value is not None:
         plt.axhline(y=benchmark_value, color='r', linestyle='--', label=f'bench_FCI({round(benchmark_value, 3)})')
-    filename = get_filename(evaluation_function=evaluation_function, branches=branches, image=True, roll_out_steps=roll_out_steps, rollout_type=rollout_type, iteration=0, budget=budget) + '_budget_'+str(budget)
+    filename = get_filename(evaluation_function=evaluation_function, branches=branches, image=True, roll_out_steps=roll_out_steps, rollout_type=rollout_type, iteration=0, budget=budget, epsilon=epsilon, gradient=gradient) + '_budget_'+str(budget)
     plt.legend(loc='best')
     plt.title(evaluation_function.__name__ + ' - Budget  '+str(budget))
 
@@ -146,41 +159,35 @@ def plot_cost(evaluation_function, branches, budget, roll_out_steps, rollout_typ
     plt.clf()
 
 
-def plot_oracle(evaluation_function, max_branches, gate_set, budget, roll_out_steps=0, rollout_type=None):
-    d = get_paths(evaluation_function, max_branches, gate_set, budget, roll_out_steps, rollout_type)[0]
-    gate = d[-1][-1].to_gate(label='Oracle Approx')
-    counts_approx = grover_algo(oracle='approximation', oracle_gate=gate, iterations=2, ancilla=1)
-    counts_exact = grover_algo(oracle='exact', iterations=2)
-
-    legend = ['Exact', 'Approx']
-
-    filename = 'experiments/sudoku2x2/Istogram' + gate_set + '_bf_' + str(max_branches) + '_budget_' + str(budget)
-
-    plot_histogram([counts_exact, counts_approx], legend=legend, color=['crimson', 'midnightblue'],
-                   figsize=(15, 10), filename=filename)
-    print('image saved')
-    plt.clf()
-
-
-def boxplot(evaluation_function, branches, roll_out_steps, rollout_type, n_iter, best=True):
+def boxplot(evaluation_function, branches, roll_out_steps, rollout_type, epsilon, n_iter, best, gradient):
     """ Save a boxplot image, with the stats on the n_iter independent runs vs the budget of mcts"""
     solutions = []
-    BUDGET = [1000, 2000, 5000, 10000, 50000, 100000]
-
+    BUDGET = [1000, 2000, 5000, 10000, 50000, 100000, 200000]
+    if gradient:
+        best = False
     # Gate Data
+
     for budget in BUDGET:
-        d = get_paths(evaluation_function, branches, budget, roll_out_steps, rollout_type)[0]
-        if d is None:
+        if not check_file_exist(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, gradient, n_iter):
+            index = BUDGET.index(budget)
+            BUDGET = BUDGET[:index]
             break
-        qc_solutions = [d[i][-1] for i in range(n_iter)]   # leaf nodes
+        qc_solutions = []
+        if not gradient:
+            d = get_paths(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon)[0]
+            qc_solutions = [d[i][-1] for i in range(n_iter)]   # leaf nodes
         if evaluation_function == h2 or evaluation_function == vqls_1:
             if best:
-                sol = best_in_path(evaluation_function, branches, budget, roll_out_steps, rollout_type, n_iter)
+                sol = best_in_path(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, n_iter)[0]
 
+                solutions.append(sol)
+            elif gradient:
+                sol = get_best_overall(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, n_iter)
                 solutions.append(sol)
             else:
                 sol = list(map(lambda x: evaluation_function(x, cost=True), qc_solutions))
                 solutions.append([x.numpy() for x in sol])
+
         elif evaluation_function == sudoku2x2:
             gates = [qc.to_gate(label='Oracle Approx') for qc in qc_solutions]
 
@@ -196,9 +203,9 @@ def boxplot(evaluation_function, branches, roll_out_steps, rollout_type, n_iter,
 
             solutions.append([x['1001'] + x['0110'] for x in counts_approx])
         print('Boxplot created at budget: ', budget)
-
     # Plotting
     lab = [str(b) for b in BUDGET]
+    print(lab)
     plt.boxplot(solutions, patch_artist=True, labels=lab, meanline=True, showmeans=True)
 
     benchmark = get_benchmark(evaluation_function)
@@ -215,12 +222,11 @@ def boxplot(evaluation_function, branches, roll_out_steps, rollout_type, n_iter,
     elif evaluation_function == sudoku2x2:
         plt.ylabel('Right Counts')
         label = 'exact_oracle'
-
     else:
         raise NotImplementedError
 
     plt.axhline(y=benchmark, color='r', linestyle='--', label=label)
-    filename = get_filename(evaluation_function=evaluation_function, branches=branches, image=True, roll_out_steps=roll_out_steps, rollout_type=rollout_type, iteration=0, budget=0)
+    filename = get_filename(evaluation_function=evaluation_function, branches=branches, image=True, roll_out_steps=roll_out_steps, rollout_type=rollout_type, iteration=0, epsilon=epsilon, gradient=gradient, budget=0)
     plt.title(evaluation_function.__name__)
     plt.xlabel('MCTS Simulations')
     plt.legend()
@@ -240,13 +246,54 @@ def get_qc_depth(evaluation_function, max_branches, gate_set, budget, roll_out_s
     return depth
 
 
-def add_gradient_descent_column(evaluation_function, budget, iteration, branches, gate_set='continuous', rollout_type="classic", roll_out_steps=None):
+def add_gradient_descent_column(evaluation_function, budget, iteration, branches, epsilon, roll_out_steps, gate_set='continuous', rollout_type="classic"):
+    indices = best_in_path(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, n_iter=iteration)[1]
     for i in range(iteration):
-        filename = get_filename(evaluation_function, budget, branches, iteration=i, gate_set=gate_set, rollout_type=rollout_type, roll_out_steps=roll_out_steps, image=False)
-        d = get_paths(evaluation_function, branches, budget, roll_out_steps, rollout_type)[0]
+        filename = get_filename(evaluation_function, budget, branches, iteration=i, gate_set=gate_set, rollout_type=rollout_type, roll_out_steps=roll_out_steps,
+                                epsilon=epsilon, gradient=False, image=False)
+        d = get_paths(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, iteration)[0]
         df = pd.read_pickle(filename + '.pkl')
 
-        df.insert(-1, "Adam", data, True)
-        df.to_pickle(os.path.join(filename + 'prova.pkl'))
+        quantum_circuit_last = d[i][-1]
+
+        final_result = evaluation_function(quantum_circuit_last, ansatz='', cost=False, gradient=True)
+
+        final_result = [x.numpy() for x in final_result]
+        column = [[None]]*df.shape[0]
+        column[-1] = final_result
+
+        index = indices[i]
+        print(index)
+        if index != len(d[i]):
+            quantum_circuit_best = d[i][index]
+            best_result = evaluation_function(quantum_circuit_best, ansatz='', cost=False, gradient=True)
+            best_result = [x.numpy() for x in best_result]
+            column[index] = best_result
+        df["Adam"] = column
+        df.to_pickle(os.path.join(filename + '_comp.pkl'))
+
+
+def get_best_overall(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, n_iter):
+    best = []
+    for i in range(n_iter):
+        filename = get_filename(evaluation_function=evaluation_function, budget=budget, iteration=i, branches=branches, epsilon=epsilon, rollout_type=rollout_type, roll_out_steps=roll_out_steps,
+                                gradient=True, image=False)
+        df = pd.read_pickle(filename + '.pkl')
+        column = df['Adam']
+        final = [column[j][-1] for j in range(df.shape[0]) if column[j][0] is not None]
+        best.append(min(k for k in final if not math.isnan(k)))
+
+    return best
+
+
+def check_file_exist(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, gradient, n_iter=10, gate_set='continuous'):
+    """ :return: bool. True if all the files are stored, false otherwise"""
+    check = True
+    for i in range(n_iter):
+        filename = get_filename(evaluation_function, budget, branches, iteration=i, gate_set=gate_set, rollout_type=rollout_type, epsilon=epsilon, gradient=gradient, roll_out_steps=roll_out_steps, image=False)
+        if not os.path.isfile(filename+'.pkl'):
+            check = False
+    return check
+
 
 
