@@ -1,10 +1,9 @@
-from typing import List, Any
-
 import pandas as pd
 from qiskit import Aer, transpile, execute
 from structure import GateSet, Circuit, actions_on_circuit
 import matplotlib.pyplot as plt
 import numpy as np
+
 
 
 def create_random_qc(n_qubits, gate_number):
@@ -110,5 +109,7 @@ def quantum_circuit_regeneration(quantum_circuit, filename):
 
     matrix_goal = df['operator'][hardest_index].data
     matrix_test = matrix(quantum_circuit).data
+    normalization_factor = 4*(2**len(quantum_circuit.qubits))**2
+    distance = evaluation(matrix_test, matrix_goal)/normalization_factor
+    return 1-distance
 
-    return evaluation(matrix_test, matrix_goal)

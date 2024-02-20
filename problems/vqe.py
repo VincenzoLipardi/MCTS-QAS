@@ -20,6 +20,7 @@ class H2O:
         self.hamiltonian, self.qubits = qml.qchem.molecular_hamiltonian(self.symbols, self.geometry, charge=0, mult=1, basis="sto-6g", active_electrons=4, active_orbitals=4, load_data=True)
 
         self.hf = qml.qchem.hf_state(self.active_electrons, self.qubits)
+
     def costFunc(self, params, quantum_circuit=None, ansatz=''):
         """
         Energy of the molecule that we have to minimize
@@ -30,7 +31,7 @@ class H2O:
             # assert len(parameters) == 1
 
             qml.BasisState(self.hf, wires=self.wires)
-            qml.DoubleExcitation(parameters, wires=[0, 1, 2, 3])
+            qml.DoubleExcitation(parameters, wires=self.wires)
 
         def circuit_input(parameters):
             qml.BasisState(self.hf, wires=self.wires)
@@ -73,6 +74,7 @@ class H2O:
 
     def getReward(self, params, quantum_circuit=None, ansatz=''):
         return -self.costFunc(params, quantum_circuit, ansatz)
+
     def gradient_descent(self, quantum_circuit):
         opt = qml.AdamOptimizer()
         parameters = get_parameters(quantum_circuit)
@@ -111,7 +113,6 @@ class H2O:
 
 class LiH:
 
-
     def __init__(self):
         # Atoms
 
@@ -138,7 +139,7 @@ class LiH:
             # assert len(parameters) == 1
 
             qml.BasisState(self.hf, wires=self.wires)
-            qml.DoubleExcitation(parameters, wires=[0, 1, 2, 3])
+            qml.DoubleExcitation(parameters, wires=self.wires)
 
         def circuit_input(parameters):
             qml.BasisState(self.hf, wires=self.wires)
@@ -256,7 +257,7 @@ class H2:
             # assert len(parameters) == 1
 
             qml.BasisState(self.hf, wires=self.wires)
-            qml.DoubleExcitation(parameters, wires=[0, 1, 2, 3])
+            qml.DoubleExcitation(parameters, wires=self.wires)
 
         def circuit_input(parameters):
             qml.BasisState(self.hf, wires=self.wires)

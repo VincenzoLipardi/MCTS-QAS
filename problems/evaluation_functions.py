@@ -7,11 +7,12 @@ from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister, Aer, tran
 
 
 # ORACLE APPROXIMATION
-def qc_regeneration(quantum_circuit):
-    reward = quantum_circuit_regeneration(quantum_circuit=quantum_circuit, filename='oracles/dataset/regeneration_clifford')
-    N = 2**len(quantum_circuit.qubits)
-    reward = reward/N**2
-    return reward
+def qc_regeneration(quantum_circuit, cost=False):
+    reward = quantum_circuit_regeneration(quantum_circuit=quantum_circuit, filename='problems/oracles/dataset/regeneration_clifford')
+    if cost:
+        return -reward
+    else:
+        return reward
 
 
 # Evaluation Function for the Grover's Oracle (Sudoku 2x2)
@@ -87,8 +88,13 @@ def oracle_function(quantum_circuit, function, x, shots):
 
 
 # QUANTUM CHEMISTRY MODELS
+lih_class = LiH()
+h2o_class = H2O()
+h2_class = H2()
+
+
 def h2(quantum_circuit, ansatz='all', cost=False, gradient=False):
-    problem =H2()
+    problem = h2_class
     if cost and gradient:
         raise ValueError('Cannot return both cost/reward and gradient descent result')
     if gradient:
@@ -100,7 +106,7 @@ def h2(quantum_circuit, ansatz='all', cost=False, gradient=False):
 
 
 def lih(quantum_circuit, ansatz='all', cost=False, gradient=False):
-    problem = LiH()
+    problem = lih_class
     if cost and gradient:
         raise ValueError('Cannot return both cost/reward and gradient descent result')
     if gradient:
@@ -112,7 +118,7 @@ def lih(quantum_circuit, ansatz='all', cost=False, gradient=False):
 
 
 def h2o(quantum_circuit, ansatz='all', cost=False, gradient=False):
-    problem = H2O()
+    problem = h2o_class
     if cost and gradient:
         raise ValueError('Cannot return both cost/reward and gradient descent result')
     if gradient:
@@ -124,10 +130,12 @@ def h2o(quantum_circuit, ansatz='all', cost=False, gradient=False):
 
 
 # SYSTEMS OF LINEAR EQUATIONS
-def vqls_0(quantum_circuit, ansatz='all', cost=False):
+vqls_demo = VQLS(c=[1, 0.2, 0.2])
+vqls_paper = VQLS(c=[1, 0.1, 0.1, 0.2])
 
+def vqls_0(quantum_circuit, ansatz='all', cost=False):
     # Instance shown in pennylane demo: https://pennylane.ai/qml/demos/tutorial_vqls/
-    problem = VQLS(c=[1, 0.2, 0.2])
+    problem = vqls_demo
 
     if cost:
         return problem.costFunc(params=[0.1], quantum_circuit=quantum_circuit, ansatz=ansatz)
@@ -137,7 +145,7 @@ def vqls_0(quantum_circuit, ansatz='all', cost=False):
 
 def vqls_1(quantum_circuit, ansatz='all', cost=False, gradient=False):
     # Define the problem A = c_0 I + c_1 X_1 + c_2 X_2 + c_3 Z_3 Z_4
-    problem = VQLS(c=[1, 0.1, 0.1, 0.2])
+    problem = vqls_paper
 
     if cost and gradient:
         raise ValueError('Cannot return both cost and gradient descent result')

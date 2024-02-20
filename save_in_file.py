@@ -5,18 +5,21 @@ import os.path
 import numpy as np
 from structure import Circuit
 import matplotlib.pyplot as plt
-from problems.evaluation_functions import h2, vqls_1, sudoku2x2,h2o,lih
+from problems.evaluation_functions import h2, vqls_1, sudoku2x2, h2o, lih
 from problems.oracles.grover.grover import grover_algo
 from qiskit.visualization import plot_histogram
 from problems.vqe import H2
 
 
 
-def get_filename(evaluation_function, budget, branches, iteration, epsilon, gradient, image, gate_set='continuous', rollout_type="classic", roll_out_steps=None):
+def get_filename(evaluation_function, budget, branches, iteration, epsilon, stop_deterministic, gradient, image, gate_set='continuous', rollout_type="classic", roll_out_steps=None):
     """ it creates the string of the file name that have to be saved or read"""
 
     ro = ''
     ros = ''
+    stop = ''
+    if stop_deterministic:
+        stop = '_stop'
     if evaluation_function != sudoku2x2:
         ro = 'rollout_' + rollout_type + '/'
         ros = '_rsteps_' + str(roll_out_steps)
@@ -37,9 +40,9 @@ def get_filename(evaluation_function, budget, branches, iteration, epsilon, grad
         grad = '_comp'
 
     if image:
-        filename = 'experiments/' + evaluation_function.__name__ + '/' + gate_set + '/' + ro+'images/'+branch + eps + ros + grad
+        filename = 'experiments/' + evaluation_function.__name__ + '/' + gate_set + '/' + ro+'images/' + branch + eps + ros + grad + stop
     else:
-        filename = 'experiments/' + evaluation_function.__name__ + '/' + gate_set + '/' + ro + branch + eps + '_budget_' + str(budget) + ros + '_run_' + str(iteration)+grad
+        filename = 'experiments/' + evaluation_function.__name__ + '/' + gate_set + '/' + ro + branch + eps + '_budget_' + str(budget) + ros + '_run_' + str(iteration)+grad+stop
     return filename
 
 
@@ -72,19 +75,20 @@ def data(evaluation_function, variable_qubits, ancilla_qubits, budget, max_depth
     final_state = mcts.mcts(root, budget=budget, branches=branches, evaluation_function=evaluation_function, rollout_type=rollout_type, roll_out_steps=roll_out_steps,
                             choices=choices, epsilon=epsilon, stop_deterministic=stop_deterministic, verbose=verbose)
 
-    filename = get_filename(evaluation_function, budget=budget, branches=branches, iteration=iteration, gate_set=gate_set, rollout_type=rollout_type, roll_out_steps=roll_out_steps, epsilon=epsilon, gradient=False, image=False)
+    filename = get_filename(evaluation_function, budget=budget, branches=branches, iteration=iteration, gate_set=gate_set, rollout_type=rollout_type, roll_out_steps=roll_out_steps, epsilon=epsilon, stop_deterministic=stop_deterministic, gradient=False, image=False)
 
     df = pd.DataFrame(final_state)
     df.to_pickle(os.path.join(filename + '.pkl'))
     return print("files saved in experiments/", evaluation_function.__name__, 'as ', filename)
 
 
-def get_paths(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, n_iter=10, gate_set='continuous'):
+def get_paths(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter=10, gate_set='continuous'):
     """ It opens the .pkl files and returns quantum circuits along the best path """
     qc_along_path = []
     children, visits, value = [], [], []
     for i in range(n_iter):
-        filename = get_filename(evaluation_function, budget, branches, iteration=i, gate_set=gate_set, rollout_type=rollout_type, epsilon=epsilon, gradient=False, roll_out_steps=roll_out_steps, image=False)
+        filename = get_filename(evaluation_function, budget, branches, iteration=i, gate_set=gate_set, rollout_type=rollout_type, epsilon=epsilon, stop_deterministic=stop_deterministic, gradient=False, roll_out_steps=roll_out_steps, image=False)
+
         if os.path.isfile(filename+'.pkl'):
             df = pd.read_pickle(filename+'.pkl')
             qc_along_path.append([circuit for circuit in df['qc']])
@@ -114,12 +118,15 @@ def get_benchmark(evaluation_function):
             pass
         right_counts = counts_exact['1001'] + counts_exact['0110']
         return right_counts
-    else:
-        return 0
+    elif evaluation_function == lih:
+        return -7.972
+    elif evaluation_function == h2o:
+        return -75.16, -75.49
 
 
-def best_in_path(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, n_iter):
-    d = get_paths(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, n_iter)[0]
+
+def best_in_path(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter):
+    d = get_paths(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon,stop_deterministic,  n_iter)[0]
 
     cost_overall, best_index = [], []
 
@@ -130,9 +137,9 @@ def best_in_path(evaluation_function, branches, budget, roll_out_steps, rollout_
     return cost_overall, best_index
 
 
-def plot_cost(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon,  n_iter, gradient=False):
+def plot_cost(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter, gradient=False):
     """It saves the convergence plot of the cost vs tree depth"""
-    d = get_paths(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, n_iter=n_iter)[0]
+    d = get_paths(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, stop_deterministic,  n_iter=n_iter)[0]
     max_tree_depth = len(max(d, key=len))
     indices = list(range(max_tree_depth+2))
     if max_tree_depth > 20:
@@ -145,12 +152,19 @@ def plot_cost(evaluation_function, branches, budget, roll_out_steps, rollout_typ
         cost = list(map(lambda x: evaluation_function(x, cost=True), d[i]))
         plt.plot(list(range(len(cost))), cost, marker='o', linestyle='-', label=str(i+1))
     benchmark_value = None
-    if evaluation_function == h2:
-        benchmark_value = get_benchmark(evaluation_function)[1]
+    if evaluation_function == h2 or evaluation_function == h2o or evaluation_function == lih:
+        benchmark_value = get_benchmark(evaluation_function)
+        plt.ylabel('Energy (Ha)')
+    elif evaluation_function == h2:
         plt.yticks(np.arange(-1.2, 0.1, 0.1))
     if benchmark_value is not None:
-        plt.axhline(y=benchmark_value, color='r', linestyle='--', label=f'bench_FCI({round(benchmark_value, 3)})')
-    filename = get_filename(evaluation_function=evaluation_function, branches=branches, image=True, roll_out_steps=roll_out_steps, rollout_type=rollout_type, iteration=0, budget=budget, epsilon=epsilon, gradient=gradient) + '_budget_'+str(budget)
+        if isinstance(benchmark_value, list):
+            plt.axhline(y=benchmark_value, color='r', linestyle='--', label=f'bench_SCF({round(benchmark_value[0], 3)})')
+            plt.axhline(y=benchmark_value, color='g', linestyle='--', label=f'bench_FCI({round(benchmark_value[1], 3)})')
+
+        else:
+            plt.axhline(y=benchmark_value, color='r', linestyle='--', label=f'ADAPT-VQE({round(benchmark_value, 3)})')
+    filename = get_filename(evaluation_function=evaluation_function, branches=branches, image=True, roll_out_steps=roll_out_steps, rollout_type=rollout_type, iteration=0, budget=budget, epsilon=epsilon, stop_deterministic=stop_deterministic, gradient=gradient) + '_budget_'+str(budget)
     plt.legend(loc='best')
     plt.title(evaluation_function.__name__ + ' - Budget  '+str(budget))
 
@@ -159,30 +173,31 @@ def plot_cost(evaluation_function, branches, budget, roll_out_steps, rollout_typ
     plt.clf()
 
 
-def boxplot(evaluation_function, branches, roll_out_steps, rollout_type, epsilon, n_iter, best, gradient):
+def boxplot(evaluation_function, branches, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter, best, gradient):
     """ Save a boxplot image, with the stats on the n_iter independent runs vs the budget of mcts"""
     solutions = []
     BUDGET = [1000, 2000, 5000, 10000, 50000, 100000, 200000]
+
     if gradient:
         best = False
     # Gate Data
 
     for budget in BUDGET:
-        if not check_file_exist(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, gradient, n_iter):
+        if not check_file_exist(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, gradient, n_iter):
             index = BUDGET.index(budget)
             BUDGET = BUDGET[:index]
             break
         qc_solutions = []
         if not gradient:
-            d = get_paths(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon)[0]
+            d = get_paths(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter)[0]
             qc_solutions = [d[i][-1] for i in range(n_iter)]   # leaf nodes
-        if evaluation_function == h2 or evaluation_function == vqls_1:
+        if evaluation_function == h2 or evaluation_function == vqls_1 or evaluation_function == lih or evaluation_function == h2o:
             if best:
-                sol = best_in_path(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, n_iter)[0]
+                sol = best_in_path(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter)[0]
 
                 solutions.append(sol)
             elif gradient:
-                sol = get_best_overall(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, n_iter)
+                sol = get_best_overall(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter)
                 solutions.append(sol)
             else:
                 sol = list(map(lambda x: evaluation_function(x, cost=True), qc_solutions))
@@ -210,12 +225,21 @@ def boxplot(evaluation_function, branches, roll_out_steps, rollout_type, epsilon
 
     benchmark = get_benchmark(evaluation_function)
     if evaluation_function == h2:
-        plt.ylabel('Cost')
+        plt.ylabel('Energy (Ha)')
         flat_solutions = [x for xs in solutions for x in xs]
         maximum = round(max(flat_solutions), 1)
         plt.yticks(np.arange(-1.2, maximum+0.01, step=0.05))
         benchmark = round(benchmark[1], 3)
         label = 'bench_FCI'
+    elif evaluation_function == h2o:
+        plt.ylabel('Energy (Ha)')
+        benchmark = round(benchmark[1], 3)
+        label = 'bench_FCI'
+    elif evaluation_function == lih:
+        plt.ylabel('Energy (Ha)')
+        benchmark = round(benchmark, 3)
+        label = 'ADAPT-VQE'
+
     elif evaluation_function == vqls_1:
         label = 'benchmark'
         plt.ylabel('Cost')
@@ -226,7 +250,7 @@ def boxplot(evaluation_function, branches, roll_out_steps, rollout_type, epsilon
         raise NotImplementedError
 
     plt.axhline(y=benchmark, color='r', linestyle='--', label=label)
-    filename = get_filename(evaluation_function=evaluation_function, branches=branches, image=True, roll_out_steps=roll_out_steps, rollout_type=rollout_type, iteration=0, epsilon=epsilon, gradient=gradient, budget=0)
+    filename = get_filename(evaluation_function=evaluation_function, branches=branches, image=True, roll_out_steps=roll_out_steps, rollout_type=rollout_type, iteration=0, epsilon=epsilon, stop_deterministic=stop_deterministic, gradient=gradient, budget=0)
     plt.title(evaluation_function.__name__)
     plt.xlabel('MCTS Simulations')
     plt.legend()
@@ -246,12 +270,12 @@ def get_qc_depth(evaluation_function, max_branches, gate_set, budget, roll_out_s
     return depth
 
 
-def add_gradient_descent_column(evaluation_function, budget, iteration, branches, epsilon, roll_out_steps, gate_set='continuous', rollout_type="classic"):
-    indices = best_in_path(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, n_iter=iteration)[1]
+def add_gradient_descent_column(evaluation_function, budget, iteration, branches, epsilon, stop_deterministic, roll_out_steps, gate_set='continuous', rollout_type="classic"):
+    indices = best_in_path(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter=iteration)[1]
     for i in range(iteration):
         filename = get_filename(evaluation_function, budget, branches, iteration=i, gate_set=gate_set, rollout_type=rollout_type, roll_out_steps=roll_out_steps,
-                                epsilon=epsilon, gradient=False, image=False)
-        d = get_paths(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, iteration)[0]
+                                epsilon=epsilon, stop_deterministic=stop_deterministic, gradient=False, image=False)
+        d = get_paths(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, iteration)[0]
         df = pd.read_pickle(filename + '.pkl')
 
         quantum_circuit_last = d[i][-1]
@@ -263,7 +287,7 @@ def add_gradient_descent_column(evaluation_function, budget, iteration, branches
         column[-1] = final_result
 
         index = indices[i]
-        print(index)
+
         if index != len(d[i]):
             quantum_circuit_best = d[i][index]
             best_result = evaluation_function(quantum_circuit_best, ansatz='', cost=False, gradient=True)
@@ -273,10 +297,10 @@ def add_gradient_descent_column(evaluation_function, budget, iteration, branches
         df.to_pickle(os.path.join(filename + '_comp.pkl'))
 
 
-def get_best_overall(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, n_iter):
+def get_best_overall(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter):
     best = []
     for i in range(n_iter):
-        filename = get_filename(evaluation_function=evaluation_function, budget=budget, iteration=i, branches=branches, epsilon=epsilon, rollout_type=rollout_type, roll_out_steps=roll_out_steps,
+        filename = get_filename(evaluation_function=evaluation_function, budget=budget, iteration=i, branches=branches, epsilon=epsilon, stop_deterministic=stop_deterministic, rollout_type=rollout_type, roll_out_steps=roll_out_steps,
                                 gradient=True, image=False)
         df = pd.read_pickle(filename + '.pkl')
         column = df['Adam']
@@ -286,14 +310,11 @@ def get_best_overall(evaluation_function, branches, budget, roll_out_steps, roll
     return best
 
 
-def check_file_exist(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, gradient, n_iter=10, gate_set='continuous'):
+def check_file_exist(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, gradient, n_iter=10, gate_set='continuous'):
     """ :return: bool. True if all the files are stored, false otherwise"""
     check = True
     for i in range(n_iter):
-        filename = get_filename(evaluation_function, budget, branches, iteration=i, gate_set=gate_set, rollout_type=rollout_type, epsilon=epsilon, gradient=gradient, roll_out_steps=roll_out_steps, image=False)
+        filename = get_filename(evaluation_function, budget, branches, iteration=i, gate_set=gate_set, rollout_type=rollout_type, epsilon=epsilon, stop_deterministic=stop_deterministic, gradient=gradient, roll_out_steps=roll_out_steps, image=False)
         if not os.path.isfile(filename+'.pkl'):
             check = False
     return check
-
-
-
