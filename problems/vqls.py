@@ -1,7 +1,7 @@
 import pennylane as qml
 from pennylane import numpy as np
 import math
-from qiskit import QuantumCircuit
+
 
 
 class VQLS:
@@ -40,15 +40,24 @@ class VQLS:
         elif idx == 1:
             # X_0
             qml.CNOT(wires=[self.ancilla_idx, 0])
+            if len(self.c) == 3:
+                qml.CZ(wires=[self.ancilla_idx, 1])
 
         elif idx == 2:
             # X_1
-            qml.CNOT(wires=[self.ancilla_idx, 1])
+            if len(self.c) == 4:
+                qml.CNOT(wires=[self.ancilla_idx, 1])
+            elif len(self.c) == 3:
+                qml.CNOT(wires=[self.ancilla_idx, 0])
+
 
         elif idx == 3:
-            # Z_2 Z_3
-            qml.CZ(wires=[self.ancilla_idx, 2])
-            qml.CZ(wires=[self.ancilla_idx, 3])
+            if len(self.c) == 4:
+                # Z_2 Z_3
+                qml.CZ(wires=[self.ancilla_idx, 2])
+                qml.CZ(wires=[self.ancilla_idx, 3])
+            else:
+                pass
 
     def variational_block(self, params, quantum_circuit, ansatz):
         """Variational circuit mapping the ground state |0> to the ansatz state |x>."""
@@ -171,6 +180,40 @@ class VQLS:
     def getReward(self, params, quantum_circuit=None, ansatz=''):
         return np.exp(-10*self.costFunc(params, quantum_circuit, ansatz))
 
+    def gradient_descent(self, quantum_circuit):
+        opt = qml.AdamOptimizer()
+        parameters = get_parameters(quantum_circuit)
+        theta = np.array(parameters, requires_grad=True)
+
+        # store the values of the cost function
+
+        def prova(params):
+            return self.costFunc(params=params, quantum_circuit=quantum_circuit, ansatz='')
+
+        cost = [prova(theta)]
+
+        # store the values of the circuit parameter
+        angle = [theta]
+
+        max_iterations = 200
+        conv_tol = 1e-08  # default -06
+
+        for n in range(max_iterations):
+            theta, prev_energy = opt.step_and_cost(prova, theta)
+            cost.append(prova(theta))
+            angle.append(theta)
+
+            conv = np.abs(cost[-1] - prev_energy)
+
+            if n % 2 == 0:
+                print(f"Step = {n},  Cost = {cost[-1]:.8f}")
+
+            if conv <= conv_tol:
+                print('Landscape is flat')
+                break
+        return cost
+
+
     def getClassicalSolution(self):
         Id = np.identity(2)
         Z = np.array([[1, 0], [0, -1]])
@@ -214,3 +257,14 @@ class VQLS:
         q_probs = np.bincount(samples) / self.n_shots
 
         return q_probs
+
+
+def get_parameters(quantum_circuit):
+    parameters = []
+    # Iterate over all gates in the circuit
+    for instr, qargs, cargs in quantum_circuit.data:
+
+        # Extract parameters from gate instructions
+        if len(instr.params) > 0:
+            parameters.append(instr.params[0])
+    return parameters

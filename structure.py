@@ -3,9 +3,11 @@ import math
 import numpy as np
 from qiskit import QuantumCircuit, QuantumRegister
 from qiskit.circuit.library import RYGate, RXGate, RZGate, HGate, CXGate
+from qiskit.quantum_info import Operator
+
 
 class Circuit:
-    def __init__(self, variable_qubits, ancilla_qubits, initialization=None):
+    def __init__(self, variable_qubits, ancilla_qubits, initialization='h'):
         """
         It builds the first quantum circuit regarding the target problem
         :param variable_qubits: integer. Number of qubits necessary to encode the problem variables
@@ -18,8 +20,9 @@ class Circuit:
         ancilla_qubits = QuantumRegister(ancilla_qubits, name='a')
         qc = QuantumCircuit(variable_qubits, ancilla_qubits)
         # Initialization of the quantum circuit all qubits in the 0 states (by default) or equal superposition
-        if initialization == 'h' or 'equal_superposition' or 'hadamard':
+        if initialization == 'h' or initialization == 'equal_superposition' or initialization == 'hadamard':
             qc.h([qubits for qubits in qc.qubits])
+
         # Qiskit object
         self.circuit = qc
         # NISQ CONTROL
@@ -62,34 +65,18 @@ class Circuit:
         probabilities = list(prob_choice.values())
         probabilities = np.array(probabilities) / sum(probabilities)
         action_str = np.random.choice(keys, p=probabilities)
-        action = get_action_from_str(action_str, gate_set=gate_set)
-        return action
-
-
-def get_action_from_str(input_string, gate_set):
-
-    # Define a mapping between input strings and methods
-    method_mapping = {
-        'a': gate_set.add_gate,
-        'd': gate_set.delete_gate,
-        's': gate_set.swap,
-        'c': gate_set.change,
-        'p': gate_set.stop}
-
-    # Choose the method based on the input string
-    chosen_method = method_mapping.get(input_string, None)
-
-    if chosen_method is not None and callable(chosen_method):
-        return chosen_method
-    else:
-        return "Invalid method name"
+        action = actions_on_circuit(action_chosen=action_str, gate_set=gate_set)
+        if action is not None and callable(action):
+            return action, action_str
+        else:
+            raise NotImplementedError
 
 
 class GateSet:
     def __init__(self, gate_type='continuous'):
         self.gate_type = gate_type
         if self.gate_type == 'discrete':
-            gates = ['s', 'cx', 'h', "t"]
+            gates = ['s', 'cx', 'h', 't']
         elif self.gate_type == 'continuous':
             gates = ['cx', 'ry', 'rx', 'rz']
 
@@ -97,16 +84,21 @@ class GateSet:
             raise NotImplementedError
         self.pool = gates
 
-    def add_gate(self, quantum_circuit):
-        """
-        Pick a random one-qubit (two-qubit) gate to add on random qubit(s)
-        :param quantum_circuit: quantum circuit to modify
-        :return: new quantum circuit
-        """
+
+def actions_on_circuit(action_chosen, gate_set):
+    """
+    It modifies the quantum circuit depending on the action required in
+    :param gate_set: Universal Gate Set chosen for the application
+    :param action_chosen: str. Action chosen to apply on the circuit
+    :return: new quantum circuit
+    """
+
+    def add_gate(quantum_circuit):
+        """ Pick a random one-qubit (two-qubit) gate to add on random qubit(s) """
         qc = quantum_circuit.copy()
         qubits = random.sample([i for i in range(len(qc.qubits))], k=2)
         angle = 2 * math.pi * random.random()
-        choice = random.choice(self.pool)
+        choice = random.choice(gate_set.pool)
         if choice == 'cx':
             qc.cx(qubits[0], qubits[1])
         elif choice == 'ry':
@@ -129,13 +121,8 @@ class GateSet:
             qc.s(qubits[0])
         return qc
 
-    @staticmethod
     def delete_gate(quantum_circuit):
-        """
-        It removes a random gate from the input quantum circuit
-        :param quantum_circuit: quantum circuit to modify
-        :return: new quantum circuit
-        """
+        """ It removes a random gate from the input quantum circuit  """
         qc = quantum_circuit.copy()
         if len(qc.data) < 4:
             return None
@@ -143,7 +130,7 @@ class GateSet:
         qc.data.remove(qc.data[position])
         return qc
 
-    def swap(self, quantum_circuit):
+    def swap(quantum_circuit):
         """ It removes a gate in a random position and replace it with a new gate randomly chosen """
 
         angle = random.random() * 2 * math.pi
@@ -153,7 +140,7 @@ class GateSet:
             return None
 
         gate_to_remove = quantum_circuit.data[position]
-        gate_to_add_str = random.choice(self.pool[1:])
+        gate_to_add_str = random.choice(gate_set.pool[1:])
         gate_to_add = get_gate(gate_to_add_str, angle=angle)
         n_qubits = len(quantum_circuit.qubits)
         qr = QuantumRegister(n_qubits, 'v')
@@ -178,7 +165,9 @@ class GateSet:
         qc.data = instructions
         return qc
 
-    def change(self, quantum_circuit):
+    def change(quantum_circuit):
+        """ It changes the parameter of a gate randomly chosen"""
+
         qc = quantum_circuit.copy()
         n = len(qc.data)
         position = random.choice([i for i in range(n)])
@@ -193,9 +182,14 @@ class GateSet:
         qc.data[position][0].params[0] = gate_to_change.params[0] + random.uniform(0, 0.2)
         return qc
 
-    @staticmethod
-    def stop(quantum_circuit):
+    def stop():
+        """ It marks the node as terminal"""
         return 'stop'
+
+    # Define a mapping between input strings and methods
+    dict_actions = {'a': add_gate, 'd': delete_gate, 's': swap, 'c': change, 'p': stop}
+    action = dict_actions.get(action_chosen, None)
+    return action
 
 
 def get_gate(gate_str, angle=None):
@@ -214,3 +208,26 @@ def get_gate(gate_str, angle=None):
         return RYGate(theta=angle)
     elif gate_str == 'rz':
         return RZGate(phi=angle)
+
+
+def get_action_from_str(input_string, gate_set):
+    method_mapping = {
+        'a': gate_set.add_gate,
+        'd': gate_set.delete_gate,
+        's': gate_set.swap,
+        'c': gate_set.change,
+        'p': gate_set.stop}
+
+    # Choose the method based on the input string
+    chosen_method = method_mapping.get(input_string, None)
+    if chosen_method is not None and callable(chosen_method):
+        return chosen_method
+    else:
+        return "Invalid method name"
+
+
+def check_equivalence(qc1, qc2):
+    """ It returns a boolean variable. True if the two input quantum circuits are equivalent (same matrix)eqi"""
+    Op1 = Operator(qc1)
+    Op2 = Operator(qc2)
+    return Op1.equiv(Op2)
