@@ -2,11 +2,11 @@ import save_in_file as sif
 from save_in_file import check_file_exist
 from problems.evaluation_functions import h2, lih, h2o, vqls_0, vqls_1, sudoku2x2, qc_regeneration
 
-eval_func = [lih]
-N_ITER = 10
+eval_func = [h2]
+N_ITER = 5
 
 
-BUDGET = [1000, 2000, 5000, 10000, 50000, 100000]
+BUDGET = [1000, 2000, 5000, 10000, 50000]
 
 BF = [False]
 ROTYPE = 'classic'
@@ -17,8 +17,8 @@ STOP = False
 MAX_DEPTH = 20      # Chosen by the hardware
 
 plot = [False, False, True]
-run = False
-add_column = False
+run = True
+add_column = True
 
 # Run and Cost plots
 for r in ROSTEPS:
@@ -57,7 +57,6 @@ for r in ROSTEPS:
             for b in BUDGET:
                 if add_column:
                     if check_file_exist(evaluation_function=f, budget=b, n_iter=N_ITER, branches=False, epsilon=EPS, roll_out_steps=r, rollout_type=ROTYPE, gradient=False, stop_deterministic=STOP):
-
                         sif.add_gradient_descent_column(evaluation_function=f, budget=b, iteration=N_ITER, branches=False, epsilon=EPS, roll_out_steps=r, rollout_type=ROTYPE, stop_deterministic=STOP)
 
             if plot[1]:

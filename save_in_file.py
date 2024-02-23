@@ -5,7 +5,7 @@ import os.path
 import numpy as np
 from structure import Circuit
 import matplotlib.pyplot as plt
-from problems.evaluation_functions import h2, vqls_1, sudoku2x2, h2o, lih
+from problems.evaluation_functions import h2, vqls_1, sudoku2x2, h2o, lih, qc_regeneration
 from problems.oracles.grover.grover import grover_algo
 from qiskit.visualization import plot_histogram
 from problems.vqe import H2
@@ -104,9 +104,10 @@ def get_benchmark(evaluation_function):
     """ It returns the classical benchmark value of the problems in input"""
     if evaluation_function == h2:
         # List
-        problem = H2().benchmark()
-        classical_sol = -1.136189454088     # Full configuration Interaction
-        return problem, classical_sol
+        # sol_scf = H2().benchmark()
+        sol_scf = -1.115
+        sol_fci = -1.136189454088     # Full configuration Interaction
+        return sol_scf, sol_fci
     elif evaluation_function == sudoku2x2:
         counts_exact = grover_algo(oracle='exact', iterations=2, ancilla=1)
 
@@ -129,11 +130,16 @@ def best_in_path(evaluation_function, branches, budget, roll_out_steps, rollout_
     d = get_paths(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon,stop_deterministic,  n_iter)[0]
 
     cost_overall, best_index = [], []
-
     for i in range(n_iter):
         cost = list(map(lambda x: evaluation_function(x, cost=True), d[i]))
-        cost_overall.append(min(cost).numpy())
-        best_index.append(cost.index(min(cost)))
+        minimum = min(cost)
+        """if isinstance(minimum, float):
+            cost_overall.append(minimum)
+        else:
+            cost_overall.append(minimum.numpy())"""
+        cost_overall.append(minimum)
+
+        best_index.append(cost.index(minimum))
     return cost_overall, best_index
 
 
@@ -155,12 +161,13 @@ def plot_cost(evaluation_function, branches, budget, roll_out_steps, rollout_typ
     if evaluation_function == h2 or evaluation_function == h2o or evaluation_function == lih:
         benchmark_value = get_benchmark(evaluation_function)
         plt.ylabel('Energy (Ha)')
-    elif evaluation_function == h2:
+    if evaluation_function == h2:
         plt.yticks(np.arange(-1.2, 0.1, 0.1))
+
     if benchmark_value is not None:
-        if isinstance(benchmark_value, list):
-            plt.axhline(y=benchmark_value, color='r', linestyle='--', label=f'bench_SCF({round(benchmark_value[0], 3)})')
-            plt.axhline(y=benchmark_value, color='g', linestyle='--', label=f'bench_FCI({round(benchmark_value[1], 3)})')
+        if isinstance(benchmark_value, list) or isinstance(benchmark_value, tuple):
+            plt.axhline(y=benchmark_value[0], color='r', linestyle='--', label=f'bench_SCF({round(benchmark_value[0], 3)})')
+            plt.axhline(y=benchmark_value[1], color='g', linestyle='--', label=f'bench_FCI({round(benchmark_value[1], 3)})')
 
         else:
             plt.axhline(y=benchmark_value, color='r', linestyle='--', label=f'ADAPT-VQE({round(benchmark_value, 3)})')
@@ -185,23 +192,27 @@ def boxplot(evaluation_function, branches, roll_out_steps, rollout_type, epsilon
     for budget in BUDGET:
         if not check_file_exist(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, gradient, n_iter):
             index = BUDGET.index(budget)
-            BUDGET = BUDGET[:index]
-            break
+            BUDGET.pop(index)
+            continue
         qc_solutions = []
         if not gradient:
             d = get_paths(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter)[0]
             qc_solutions = [d[i][-1] for i in range(n_iter)]   # leaf nodes
-        if evaluation_function == h2 or evaluation_function == vqls_1 or evaluation_function == lih or evaluation_function == h2o:
+        if evaluation_function == h2 or evaluation_function == vqls_1 or evaluation_function == lih or evaluation_function == h2o or evaluation_function == qc_regeneration:
             if best:
                 sol = best_in_path(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter)[0]
-
                 solutions.append(sol)
             elif gradient:
                 sol = get_best_overall(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter)
                 solutions.append(sol)
             else:
                 sol = list(map(lambda x: evaluation_function(x, cost=True), qc_solutions))
-                solutions.append([x.numpy() for x in sol])
+                """if evaluation_function == qc_regeneration:
+                    solutions.append([x for x in sol])
+                else:
+                    solutions.append([x.numpy() for x in sol])"""
+                solutions.append([x for x in sol])
+
 
         elif evaluation_function == sudoku2x2:
             gates = [qc.to_gate(label='Oracle Approx') for qc in qc_solutions]
@@ -239,7 +250,10 @@ def boxplot(evaluation_function, branches, roll_out_steps, rollout_type, epsilon
         plt.ylabel('Energy (Ha)')
         benchmark = round(benchmark, 3)
         label = 'ADAPT-VQE'
-
+    elif evaluation_function == qc_regeneration:
+        plt.ylabel('Distance')
+        benchmark = 0
+        label = 'Benchmark'
     elif evaluation_function == vqls_1:
         label = 'benchmark'
         plt.ylabel('Cost')
@@ -279,10 +293,12 @@ def add_gradient_descent_column(evaluation_function, budget, iteration, branches
         df = pd.read_pickle(filename + '.pkl')
 
         quantum_circuit_last = d[i][-1]
+        if evaluation_function == qc_regeneration:
+            final_result = evaluation_function(quantum_circuit_last, cost=False, gradient=True)
+        else:
+            final_result = evaluation_function(quantum_circuit_last, ansatz='', cost=False, gradient=True)
 
-        final_result = evaluation_function(quantum_circuit_last, ansatz='', cost=False, gradient=True)
-
-        final_result = [x.numpy() for x in final_result]
+        final_result = [x for x in final_result]
         column = [[None]]*df.shape[0]
         column[-1] = final_result
 
@@ -290,8 +306,11 @@ def add_gradient_descent_column(evaluation_function, budget, iteration, branches
 
         if index != len(d[i]):
             quantum_circuit_best = d[i][index]
-            best_result = evaluation_function(quantum_circuit_best, ansatz='', cost=False, gradient=True)
-            best_result = [x.numpy() for x in best_result]
+            if evaluation_function == qc_regeneration:
+                best_result = evaluation_function(quantum_circuit_last, cost=False, gradient=True)
+            else:
+                best_result = evaluation_function(quantum_circuit_best, ansatz='', cost=False, gradient=True)
+            best_result = [x for x in best_result]
             column[index] = best_result
         df["Adam"] = column
         df.to_pickle(os.path.join(filename + '_comp.pkl'))
@@ -308,7 +327,6 @@ def get_best_overall(evaluation_function, branches, budget, roll_out_steps, roll
         best.append(min(k for k in final if not math.isnan(k)))
 
     return best
-
 
 def check_file_exist(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, gradient, n_iter=10, gate_set='continuous'):
     """ :return: bool. True if all the files are stored, false otherwise"""

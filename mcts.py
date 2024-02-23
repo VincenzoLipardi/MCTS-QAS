@@ -290,10 +290,8 @@ def mcts(root, budget, evaluation_function, rollout_type, roll_out_steps, branch
     while not best_node.isTerminal and len(best_node.children) >= 1:
         # path.append(best_node)
         qc_path.append(best_node.state.circuit)
-        print(best_node.state.circuit)
         children.append(len(best_node.children))
         value.append(best_node.value)
         visits.append(best_node.visits)
         best_node = best_node.best_child()
-    print('path length:', children)
     return {'qc': qc_path, 'children': children, 'visits': visits, 'value': value}

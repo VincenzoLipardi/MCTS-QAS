@@ -1,18 +1,22 @@
 from problems.oracles.grover import grover
 from problems.vqe import H2, LiH, H2O
 from problems.vqls import VQLS
-from problems.oracles.qc_regeneration import quantum_circuit_regeneration
+from problems.oracles.qc_regeneration import CircuitRegeneration
 import heapq
 from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister, Aer, transpile
 
 
 # ORACLE APPROXIMATION
-def qc_regeneration(quantum_circuit, cost=False):
-    reward = quantum_circuit_regeneration(quantum_circuit=quantum_circuit, filename='problems/oracles/dataset/regeneration_clifford')
+def qc_regeneration(quantum_circuit, cost=False, gradient=False):
+    problem = CircuitRegeneration(filename='problems/oracles/dataset/regeneration_clifford')
+    if cost and gradient:
+        raise ValueError('Cannot return both cost/reward and gradient descent result')
+    if gradient:
+        return problem.gradient_descent(quantum_circuit=quantum_circuit)
     if cost:
-        return -reward
+        return -problem.reward(quantum_circuit=quantum_circuit)
     else:
-        return reward
+        return problem.reward(quantum_circuit=quantum_circuit)
 
 
 # Evaluation Function for the Grover's Oracle (Sudoku 2x2)
@@ -132,6 +136,7 @@ def h2o(quantum_circuit, ansatz='all', cost=False, gradient=False):
 # SYSTEMS OF LINEAR EQUATIONS
 vqls_demo = VQLS(c=[1, 0.2, 0.2])
 vqls_paper = VQLS(c=[1, 0.1, 0.1, 0.2])
+
 
 def vqls_0(quantum_circuit, ansatz='all', cost=False):
     # Instance shown in pennylane demo: https://pennylane.ai/qml/demos/tutorial_vqls/

@@ -17,21 +17,14 @@ class H2O:
 
         # Hamiltonian of the molecule represented
         # Number of qubits needed to perform the quantum simulation
-        self.hamiltonian, self.qubits = qml.qchem.molecular_hamiltonian(self.symbols, self.geometry, charge=0, mult=1, basis="sto-6g", active_electrons=4, active_orbitals=4, load_data=True)
-
+        hamiltonian, self.qubits = qml.qchem.molecular_hamiltonian(self.symbols, self.geometry, charge=0, mult=1, basis="sto-6g", active_electrons=4, active_orbitals=4, load_data=True)
+        self.hamiltonian = hamiltonian.sparse_matrix()
         self.hf = qml.qchem.hf_state(self.active_electrons, self.qubits)
 
     def costFunc(self, params, quantum_circuit=None, ansatz=''):
         """
         Energy of the molecule that we have to minimize
         """
-        def circuit(parameters):
-            # Standard Ansatz for h2 molecule (Hatree-Fock state when parameter =0)
-
-            # assert len(parameters) == 1
-
-            qml.BasisState(self.hf, wires=self.wires)
-            qml.DoubleExcitation(parameters, wires=self.wires)
 
         def circuit_input(parameters):
             qml.BasisState(self.hf, wires=self.wires)
@@ -53,7 +46,7 @@ class H2O:
                         i += 1
                 elif name == "rz":
                     if ansatz == 'all':
-                        qml.RZ(parameters[i], wires=qubits[0].index)
+                        qml.RZ(instr.params[0], wires=qubits[0].index)
                     else:
                         qml.RZ(parameters[i], wires=qubits[0].index)
                         i += 1
@@ -63,13 +56,11 @@ class H2O:
                     qml.CNOT(wires=[qubits[0].index, qubits[1].index])
 
 
-        @qml.qnode(self.dev, interface="autograd")
+        @qml.qnode(self.dev, diff_method="parameter-shift")
         def cost_fn(parameters):
-            if quantum_circuit is None:
-                circuit(parameters)
-            else:
-                circuit_input(parameters)
-            return qml.expval(self.hamiltonian)
+            circuit_input(parameters)
+            return qml.expval(qml.SparseHamiltonian(self.hamiltonian, wires=self.wires))
+
         return cost_fn(parameters=params)
 
     def getReward(self, params, quantum_circuit=None, ansatz=''):
@@ -89,7 +80,7 @@ class H2O:
         # store the values of the circuit parameter
         angle = [theta]
 
-        max_iterations = 200
+        max_iterations = 500
         conv_tol = 1e-08    # default -06
 
         for n in range(max_iterations):
@@ -125,21 +116,15 @@ class LiH:
 
         # Hamiltonian of the molecule represented
         # Number of qubits needed to perform the quantum simulation
-        self.hamiltonian, self.qubits = qml.qchem.molecular_hamiltonian(self.symbols, self.geometry, active_electrons=2,
-                                                                        active_orbitals=5, basis='sto-6g', load_data=True)
+        hamiltonian, self.qubits = qml.qchem.molecular_hamiltonian(self.symbols, self.geometry, active_electrons=2,
+                                                                   active_orbitals=5, basis='sto-6g', load_data=True)
+        self.hamiltonian = hamiltonian.sparse_matrix()
         self.hf = qml.qchem.hf_state(self.active_electrons, self.qubits)
 
     def costFunc(self, params, quantum_circuit=None, ansatz=''):
         """
         Energy of the molecule that we have to minimize
         """
-        def circuit(parameters):
-            # Standard Ansatz for h2 molecule (Hatree-Fock state when parameter =0)
-
-            # assert len(parameters) == 1
-
-            qml.BasisState(self.hf, wires=self.wires)
-            qml.DoubleExcitation(parameters, wires=self.wires)
 
         def circuit_input(parameters):
             qml.BasisState(self.hf, wires=self.wires)
@@ -161,7 +146,7 @@ class LiH:
                         i += 1
                 elif name == "rz":
                     if ansatz == 'all':
-                        qml.RZ(parameters[i], wires=qubits[0].index)
+                        qml.RZ(instr.params[0], wires=qubits[0].index)
                     else:
                         qml.RZ(parameters[i], wires=qubits[0].index)
                         i += 1
@@ -171,13 +156,11 @@ class LiH:
                     qml.CNOT(wires=[qubits[0].index, qubits[1].index])
 
 
-        @qml.qnode(self.dev, interface="autograd")
+        @qml.qnode(self.dev, diff_method="parameter-shift")
         def cost_fn(parameters):
-            if quantum_circuit is None:
-                circuit(parameters)
-            else:
-                circuit_input(parameters)
-            return qml.expval(self.hamiltonian)
+            circuit_input(parameters)
+            return qml.expval(qml.SparseHamiltonian(self.hamiltonian, wires=self.wires))
+
         return cost_fn(parameters=params)
 
     def getReward(self, params, quantum_circuit=None, ansatz=''):
@@ -197,7 +180,7 @@ class LiH:
         # store the values of the circuit parameter
         angle = [theta]
 
-        max_iterations = 200
+        max_iterations = 500
         conv_tol = 1e-08    # default -06
 
         for n in range(max_iterations):
@@ -260,7 +243,7 @@ class H2:
             qml.DoubleExcitation(parameters, wires=self.wires)
 
         def circuit_input(parameters):
-            qml.BasisState(self.hf, wires=self.wires)
+            # qml.BasisState(self.hf, wires=self.wires)
 
             i = 0
             for instr, qubits, clbits in quantum_circuit.data:
@@ -279,7 +262,7 @@ class H2:
                         i += 1
                 elif name == "rz":
                     if ansatz == 'all':
-                        qml.RZ(parameters[i], wires=qubits[0].index)
+                        qml.RZ(instr.params[0], wires=qubits[0].index)
                     else:
                         qml.RZ(parameters[i], wires=qubits[0].index)
                         i += 1
@@ -289,7 +272,7 @@ class H2:
                     qml.CNOT(wires=[qubits[0].index, qubits[1].index])
 
 
-        @qml.qnode(self.dev, interface="autograd")
+        @qml.qnode(self.dev, diff_method="parameter-shift")
         def cost_fn(parameters):
             if quantum_circuit is None:
                 circuit(parameters)
@@ -345,7 +328,7 @@ class H2:
         # store the values of the circuit parameter
         angle = [theta]
 
-        max_iterations = 200
+        max_iterations = 500
         conv_tol = 1e-08    # default -06
 
         for n in range(max_iterations):
