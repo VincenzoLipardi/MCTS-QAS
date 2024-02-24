@@ -207,12 +207,7 @@ def boxplot(evaluation_function, branches, roll_out_steps, rollout_type, epsilon
                 solutions.append(sol)
             else:
                 sol = list(map(lambda x: evaluation_function(x, cost=True), qc_solutions))
-                """if evaluation_function == qc_regeneration:
-                    solutions.append([x for x in sol])
-                else:
-                    solutions.append([x.numpy() for x in sol])"""
                 solutions.append([x for x in sol])
-
 
         elif evaluation_function == sudoku2x2:
             gates = [qc.to_gate(label='Oracle Approx') for qc in qc_solutions]
@@ -232,14 +227,14 @@ def boxplot(evaluation_function, branches, roll_out_steps, rollout_type, epsilon
     # Plotting
     lab = [str(b) for b in BUDGET]
     print(lab)
-    plt.boxplot(solutions, patch_artist=True, labels=lab, meanline=True, showmeans=True)
+    plt.boxplot(solutions, patch_artist=True, labels=lab, meanline=True, showmeans=True, showfliers=True)
 
     benchmark = get_benchmark(evaluation_function)
     if evaluation_function == h2:
         plt.ylabel('Energy (Ha)')
-        flat_solutions = [x for xs in solutions for x in xs]
-        maximum = round(max(flat_solutions), 1)
-        plt.yticks(np.arange(-1.2, maximum+0.01, step=0.05))
+        """flat_solutions = [x for xs in solutions for x in xs]
+        maximum = max(flat_solutions).round(1)
+        plt.yticks(np.arange(-1.2, maximum+0.01, step=0.05))"""
         benchmark = round(benchmark[1], 3)
         label = 'bench_FCI'
     elif evaluation_function == h2o:
