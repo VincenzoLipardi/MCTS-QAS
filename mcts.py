@@ -184,11 +184,9 @@ def backpropagate(node, result):
         node.visits += 1
         node.value += result
         node = node.parent
-        print('backprop', node)
 
 
 def modify_prob_choice(dictionary, len_qc):
-
     keys = list(dictionary.keys())
     values = list(dictionary.values())
 
@@ -210,7 +208,6 @@ def commit(epsilon, current_node):
         coin = random.uniform(0, 1)
         if coin >= epsilon:
             current_node = current_node.best_child()
-
     else:
         current_node = current_node.best_child()
 

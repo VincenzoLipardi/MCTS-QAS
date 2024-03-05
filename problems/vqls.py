@@ -268,3 +268,8 @@ def get_parameters(quantum_circuit):
         if len(instr.params) > 0:
             parameters.append(instr.params[0])
     return parameters
+
+
+# SYSTEMS OF LINEAR EQUATIONS
+vqls_demo = VQLS(c=[1, 0.2, 0.2])
+vqls_paper = VQLS(c=[1, 0.1, 0.1, 0.2])
