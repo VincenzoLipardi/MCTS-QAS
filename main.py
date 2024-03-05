@@ -1,69 +1,57 @@
 import save_in_file as sif
 from save_in_file import check_file_exist
-from problems.evaluation_functions import h2, lih, h2o, vqls_0, vqls_1, sudoku2x2, qc_regeneration
+from evaluation_functions import h2, lih, h2o, vqls_0, vqls_1, sudoku2x2, fidelity_easy, fidelity_hard
 
-eval_func = [h2]
-N_ITER = 5
-
-
-BUDGET = [1000, 2000, 5000, 10000, 50000]
-
+eval_func = [fidelity_hard]
+N_ITER = 10
+#BUDGET = [1000, 2000, 5000, 10000, 50000, 100000]#, 200000, 300000, 400000, 600000]
 BF = [False]
+BUDGET = [400000]
 ROTYPE = 'classic'
-ROSTEPS = [1]
+ROSTEPS = [2]
 p = {'a': 50, 'd': 10, 's': 20, 'c': 20, 'p': 0}
 EPS = None
 STOP = False
 MAX_DEPTH = 20      # Chosen by the hardware
+qubits = {'h2': 4, 'lih': 10, 'h2o': 8, 'vqls_1': 4, 'sudoku2x2': 5, 'fidelity_easy': 4, 'fidelity_hard': 4}
 
-plot = [False, False, True]
+
+plot = [True, True, False, False]
 run = True
-add_column = True
+apply_gradient_descent = False
 
-# Run and Cost plots
+# Run Experiments
 for r in ROSTEPS:
     for f in eval_func:
         for m in BF:
             for b in BUDGET:
                 for i in range(N_ITER):
                     if run:
-                        if f == sudoku2x2:
-                            r = 0
-                            sif.data(evaluation_function=f, variable_qubits=5, ancilla_qubits=0, gate_set='continuous',
-                                     budget=b, branches=m, max_depth=MAX_DEPTH, roll_out_steps=r, iteration=i, choices=p,
-                                     epsilon=EPS, stop_deterministic=STOP, verbose=True)
-                        elif f == lih:
-                            sif.data(evaluation_function=f, variable_qubits=10, ancilla_qubits=0, gate_set='continuous',
-                                     rollout_type=ROTYPE, budget=b, branches=m, roll_out_steps=r, iteration=i, max_depth=MAX_DEPTH,
-                                     choices=p, epsilon=EPS, stop_deterministic=STOP, verbose=True)
-                        elif f == h2o:
-                            sif.data(evaluation_function=f, variable_qubits=8, ancilla_qubits=0, gate_set='continuous',
-                                     rollout_type=ROTYPE, budget=b, branches=m, roll_out_steps=r, iteration=i, max_depth=MAX_DEPTH,
-                                     choices=p, epsilon=EPS, stop_deterministic=STOP, verbose=True)
-                        else:
-                            sif.data(evaluation_function=f, variable_qubits=4, ancilla_qubits=0, gate_set='continuous',
-                                     rollout_type=ROTYPE, budget=b, branches=m, roll_out_steps=r, iteration=i, max_depth=MAX_DEPTH,
-                                     choices=p, epsilon=EPS, stop_deterministic=STOP, verbose=True)
-                        print('Iteration ', i, ' has been saved')
+                        sif.run_and_savepkl(evaluation_function=f, variable_qubits=qubits[f.__name__], ancilla_qubits=0, gate_set='continuous',
+                                            rollout_type=ROTYPE, budget=b, branches=m, roll_out_steps=r, iteration=i, max_depth=MAX_DEPTH,
+                                            choices=p, epsilon=EPS, stop_deterministic=STOP, verbose=True)
 
-                if plot[0]:
-                    sif.plot_cost(evaluation_function=f, branches=m, budget=b, roll_out_steps=r,
-                                  rollout_type=ROTYPE, n_iter=N_ITER, epsilon=EPS, stop_deterministic=STOP)
-
-# Boxplots
+# Plots
 for r in ROSTEPS:
     for f in eval_func:
         for m in BF:
             for b in BUDGET:
-                if add_column:
-                    if check_file_exist(evaluation_function=f, budget=b, n_iter=N_ITER, branches=False, epsilon=EPS, roll_out_steps=r, rollout_type=ROTYPE, gradient=False, stop_deterministic=STOP):
-                        sif.add_gradient_descent_column(evaluation_function=f, budget=b, iteration=N_ITER, branches=False, epsilon=EPS, roll_out_steps=r, rollout_type=ROTYPE, stop_deterministic=STOP)
 
+                if check_file_exist(evaluation_function=f, budget=b, n_iter=N_ITER, branches=False, epsilon=EPS, roll_out_steps=r, rollout_type=ROTYPE, stop_deterministic=STOP):
+                    # Add columns of the cost along the mcts path and the gradient descent on the best quantum circuit found
+                    sif.add_columns(evaluation_function=f, budget=b, n_iter=N_ITER, branches=False, epsilon=EPS, roll_out_steps=r, rollout_type=ROTYPE, stop_deterministic=STOP, gradient=apply_gradient_descent)
+                if plot[0]:
+                    # plot the cost along the mcts path
+                    sif.plot_cost(evaluation_function=f, branches=m, budget=b, roll_out_steps=r, rollout_type=ROTYPE, n_iter=N_ITER, epsilon=EPS, stop_deterministic=STOP)
             if plot[1]:
+                # Boxplot with the results of the best circuits at different budget on n_iter independent run
                 sif.boxplot(evaluation_function=f, branches=m, roll_out_steps=r, rollout_type=ROTYPE, epsilon=EPS,
-                            n_iter=N_ITER, best=False, gradient=False, stop_deterministic=STOP)
-                sif.boxplot(evaluation_function=f, branches=m, roll_out_steps=r, rollout_type=ROTYPE, epsilon=EPS,
-                            n_iter=N_ITER, best=True, gradient=False, stop_deterministic=STOP)
+                            n_iter=N_ITER, gradient=False, stop_deterministic=STOP)
             if plot[2]:
+                # Boxplot with the results after the fine-tuning at different budget on n_iter independent run
                 sif.boxplot(evaluation_function=f, branches=m, roll_out_steps=r, rollout_type=ROTYPE, epsilon=EPS,
-                            n_iter=N_ITER, best=False, gradient=True, stop_deterministic=STOP)
+                            n_iter=N_ITER, gradient=True, stop_deterministic=STOP)
+            if plot[3]:
+                # Plot of the gradient descent on the best run for different budgets
+                sif.plot_gradient_descent(evaluation_function=f, branches=m, budget=BUDGET, roll_out_steps=r,
+                                          rollout_type=ROTYPE, n_iter=N_ITER, epsilon=EPS, stop_deterministic=STOP)

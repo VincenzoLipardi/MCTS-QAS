@@ -3,6 +3,23 @@ from pennylane import numpy as np
 
 # All the models are retrieved from Pennylane
 
+class C2:
+    def __init__(self):
+        # Atoms
+        print(qml.qchem.read_structure("h2o.xyz"))
+        self.geometry = np.array([0., 0., 0.,  3.36087791, 0., 0.]) * 1.88973  # Angstrom to Bohr
+        self.symbols = ['C', 'C']
+        self.wires = list(range(0, 8))
+        self.dev = qml.device('default.qubit', wires=8)
+        self.active_electrons = 4
+
+
+        # Hamiltonian of the molecule represented
+        # Number of qubits needed to perform the quantum simulation
+        hamiltonian, self.qubits = qml.qchem.molecular_hamiltonian(self.symbols, self.geometry, charge=0, mult=1, basis="sto-6g", active_electrons=4, active_orbitals=4, load_data=True)
+        print(hamiltonian, self.qubits)
+        self.hamiltonian = hamiltonian.sparse_matrix()
+        self.hf = qml.qchem.hf_state(self.active_electrons, self.qubits)
 
 class H2O:
     def __init__(self):
@@ -190,8 +207,6 @@ class LiH:
 
             conv = np.abs(energy[-1] - prev_energy)
 
-            if n % 2 == 0:
-                print(f"Step = {n},  Energy = {energy[-1]:.8f} Ha")
 
             if conv <= conv_tol:
                 print('Landscape is flat')
@@ -359,3 +374,9 @@ def get_parameters(quantum_circuit):
         if len(instr.params) > 0:
             parameters.append(instr.params[0])
     return parameters
+
+
+# QUANTUM CHEMISTRY MODELS
+lih_class = LiH()
+h2o_class = H2O()
+h2_class = H2()
