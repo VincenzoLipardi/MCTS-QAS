@@ -1,28 +1,11 @@
 import pennylane as qml
 from pennylane import numpy as np
 
-# All the models are retrieved from Pennylane
+# All the models are retrieved from the Quantum Chemistry module in Pennylane
 
-class C2:
-    def __init__(self):
-        # Atoms
-        print(qml.qchem.read_structure("h2o.xyz"))
-        self.geometry = np.array([0., 0., 0.,  3.36087791, 0., 0.]) * 1.88973  # Angstrom to Bohr
-        self.symbols = ['C', 'C']
-        self.wires = list(range(0, 8))
-        self.dev = qml.device('default.qubit', wires=8)
-        self.active_electrons = 4
-
-
-        # Hamiltonian of the molecule represented
-        # Number of qubits needed to perform the quantum simulation
-        hamiltonian, self.qubits = qml.qchem.molecular_hamiltonian(self.symbols, self.geometry, charge=0, mult=1, basis="sto-6g", active_electrons=4, active_orbitals=4, load_data=True)
-        print(hamiltonian, self.qubits)
-        self.hamiltonian = hamiltonian.sparse_matrix()
-        self.hf = qml.qchem.hf_state(self.active_electrons, self.qubits)
 
 class H2O:
-    def __init__(self):
+    def __init__(self, sparse=True):
         # Atoms
 
         self.geometry = np.array([0., 0., 0., 1.63234543, 0.86417176, 0., 3.36087791, 0., 0.]) * 1.88973  # Angstrom to Bohr
@@ -30,12 +13,12 @@ class H2O:
         self.wires = list(range(0, 8))
         self.dev = qml.device('default.qubit', wires=8)
         self.active_electrons = 4
-
-
+        self.sparse = sparse
         # Hamiltonian of the molecule represented
         # Number of qubits needed to perform the quantum simulation
-        hamiltonian, self.qubits = qml.qchem.molecular_hamiltonian(self.symbols, self.geometry, charge=0, mult=1, basis="sto-6g", active_electrons=4, active_orbitals=4, load_data=True)
-        self.hamiltonian = hamiltonian.sparse_matrix()
+        self.hamiltonian, self.qubits = qml.qchem.molecular_hamiltonian(self.symbols, self.geometry, charge=0, mult=1, basis="sto-6g", active_electrons=4, active_orbitals=4, load_data=True)
+        if sparse:
+            self.hamiltonian = self.hamiltonian.sparse_matrix()
         self.hf = qml.qchem.hf_state(self.active_electrons, self.qubits)
 
     def costFunc(self, params, quantum_circuit=None, ansatz=''):
@@ -76,7 +59,11 @@ class H2O:
         @qml.qnode(self.dev, diff_method="parameter-shift")
         def cost_fn(parameters):
             circuit_input(parameters)
-            return qml.expval(qml.SparseHamiltonian(self.hamiltonian, wires=self.wires))
+            if self.sparse:
+                return qml.expval(qml.SparseHamiltonian(self.hamiltonian, wires=self.wires))
+            else:
+                return qml.expval(self.hamiltonian)
+
 
         return cost_fn(parameters=params)
 
@@ -230,8 +217,6 @@ class H2:
             self.geometry = np.array([[0., 0., -0.66140414], [0., 0., 0.66140414]])
         else:
             self.geometry = geometry
-
-
         def hamiltonian_preparation(name):
             if name == 'pyscf':
                 h, q = qml.qchem.molecular_hamiltonian(
@@ -380,3 +365,4 @@ def get_parameters(quantum_circuit):
 lih_class = LiH()
 h2o_class = H2O()
 h2_class = H2()
+h2o_full_class = H2O(sparse=False)

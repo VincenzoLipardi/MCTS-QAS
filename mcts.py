@@ -187,6 +187,7 @@ def backpropagate(node, result):
 
 
 def modify_prob_choice(dictionary, len_qc):
+
     keys = list(dictionary.keys())
     values = list(dictionary.values())
 
@@ -203,7 +204,6 @@ def modify_prob_choice(dictionary, len_qc):
 
 def commit(epsilon, current_node):
     # It commits to the best action if the node has explored enough
-
     if epsilon is not None:
         coin = random.uniform(0, 1)
         if coin >= epsilon:

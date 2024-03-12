@@ -1,24 +1,25 @@
 import save_in_file as sif
 from save_in_file import check_file_exist
-from evaluation_functions import h2, lih, h2o, vqls_0, vqls_1, sudoku2x2, fidelity_easy, fidelity_hard
+from evaluation_functions import h2, lih, h2o, vqls_0, vqls_1, sudoku2x2, fidelity_easy, fidelity_hard, fidelity_5, h2o_full
 
-eval_func = [fidelity_hard]
+eval_func = [h2o]
 N_ITER = 10
-#BUDGET = [1000, 2000, 5000, 10000, 50000, 100000]#, 200000, 300000, 400000, 600000]
+BUDGET = [1000, 2000, 5000, 10000, 50000, 100000, 200000, 300000]
+
 BF = [False]
-BUDGET = [400000]
+
 ROTYPE = 'classic'
-ROSTEPS = [2]
+ROSTEPS = [1]
 p = {'a': 50, 'd': 10, 's': 20, 'c': 20, 'p': 0}
 EPS = None
 STOP = False
 MAX_DEPTH = 20      # Chosen by the hardware
-qubits = {'h2': 4, 'lih': 10, 'h2o': 8, 'vqls_1': 4, 'sudoku2x2': 5, 'fidelity_easy': 4, 'fidelity_hard': 4}
+qubits = {'h2': 4, 'lih': 10, 'h2o': 8, 'vqls_1': 4, 'sudoku2x2': 5, 'fidelity_easy': 4, 'fidelity_hard': 4, 'fidelity_5': 4,  'h2o_full': 8}
 
-
-plot = [True, True, False, False]
-run = True
-apply_gradient_descent = False
+# Cost plot: convergence via mcts, boxplot of the best via mcts, boxplot after classical optimizer, convergence via classical optimizer
+plot = [False, False, True, False]
+run = False
+apply_gradient_descent = [False, False]
 
 # Run Experiments
 for r in ROSTEPS:
@@ -36,10 +37,11 @@ for r in ROSTEPS:
     for f in eval_func:
         for m in BF:
             for b in BUDGET:
+                if apply_gradient_descent[0]:
+                    if check_file_exist(evaluation_function=f, budget=b, n_iter=N_ITER, branches=False, epsilon=EPS, roll_out_steps=r, rollout_type=ROTYPE, stop_deterministic=STOP):
+                        # Add columns of the cost along the mcts path and the gradient descent on the best quantum circuit found
+                        sif.add_columns(evaluation_function=f, budget=b, n_iter=N_ITER, branches=False, epsilon=EPS, roll_out_steps=r, rollout_type=ROTYPE, stop_deterministic=STOP, gradient=apply_gradient_descent[1])
 
-                if check_file_exist(evaluation_function=f, budget=b, n_iter=N_ITER, branches=False, epsilon=EPS, roll_out_steps=r, rollout_type=ROTYPE, stop_deterministic=STOP):
-                    # Add columns of the cost along the mcts path and the gradient descent on the best quantum circuit found
-                    sif.add_columns(evaluation_function=f, budget=b, n_iter=N_ITER, branches=False, epsilon=EPS, roll_out_steps=r, rollout_type=ROTYPE, stop_deterministic=STOP, gradient=apply_gradient_descent)
                 if plot[0]:
                     # plot the cost along the mcts path
                     sif.plot_cost(evaluation_function=f, branches=m, budget=b, roll_out_steps=r, rollout_type=ROTYPE, n_iter=N_ITER, epsilon=EPS, stop_deterministic=STOP)

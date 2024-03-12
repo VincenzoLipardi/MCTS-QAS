@@ -5,12 +5,12 @@ import os.path
 import numpy as np
 from structure import Circuit
 import matplotlib.pyplot as plt
-from evaluation_functions import h2, vqls_1, sudoku2x2, h2o, lih, fidelity_easy, fidelity_hard
+from evaluation_functions import h2, vqls_1, sudoku2x2, h2o, lih, fidelity_easy, fidelity_hard, h2o_full
 from problems.oracles.grover.grover import grover_algo
 
 
 
-def get_filename(evaluation_function, budget, branches, iteration, epsilon, stop_deterministic, rollout_type, image, gate_set='continuous', roll_out_steps=None):
+def get_filename(evaluation_function, budget, branches, iteration, epsilon, stop_deterministic, rollout_type, image, gradient=False, gate_set='continuous', roll_out_steps=None):
     """ it creates the string of the file name that have to be saved or read"""
 
     ro = ''
@@ -33,7 +33,8 @@ def get_filename(evaluation_function, budget, branches, iteration, epsilon, stop
     grad, eps = '', ''
     if epsilon is not None:
         eps = '_eps_'+str(epsilon)
-
+    if gradient:
+        grad = '_gd'
     if image:
         filename = 'experiments/' + evaluation_function.__name__ + '/' + gate_set + '/' + ro+'images/' + branch + eps + ros + grad + stop
     else:
@@ -44,14 +45,14 @@ def get_filename(evaluation_function, budget, branches, iteration, epsilon, stop
 def run_and_savepkl(evaluation_function, variable_qubits, ancilla_qubits, budget, max_depth, iteration, branches, choices, epsilon, stop_deterministic, gate_set='continuous', rollout_type="classic", roll_out_steps=None, verbose=True):
     """
     It runs the mcts on the indicated problem and saves the result (the best path) in a .pkl file
-    :param stop_deterministic:
+    :param stop_deterministic: If True each node expanded will be also taken into account as terminal node.
     :param epsilon: float. probability to go random
-    :param choices: dict. Probability over all the possible choices
+    :param choices: dict. Probability distribution over all the possible class actions
     :param evaluation_function: func. It defines the problem, then the reward function for the mcts agent
     :param variable_qubits:int.  Number of qubits required for the problem
     :param ancilla_qubits: int. Number of ancilla qubits required, as in the case of the oracle problem (Hyperparameter)
-    :param gate_set: str.
-    :param budget: int. resources allocated for the mcts search. MCTS iterations
+    :param gate_set: str. Use 'continuous' (CX+single-qubit rotations) or 'discrete'( Clifford generator + t).
+    :param budget: int. Resources allocated for the mcts search. MCTS iterations (or simulations)
     :param max_depth: int. Max depth of the quantum circuit
     :param iteration: int. Number of the independent run.
     :param branches: bool or int. If True progressive widening implemented. If int the number of maximum branches is fixed.
@@ -107,9 +108,6 @@ def add_columns(evaluation_function, budget, n_iter, branches, epsilon, stop_det
                 column_adam[index] = best_result
             df["Adam"] = column_adam
 
-
-
-
         df.to_pickle(os.path.join(filename + '.pkl'))
         print('Columns added to: ', filename)
 
@@ -143,15 +141,22 @@ def best_in_path(evaluation_function, branches, budget, roll_out_steps, rollout_
         df = pd.read_pickle(filename + '.pkl')
         cost = df['cost'].tolist()
         if isinstance(cost[0], list):
-            minimum = min(cost)[0]
+            if evaluation_function == fidelity_easy or evaluation_function == fidelity_hard:
+                best = max(cost)[0]
+            else:
+                best = min(cost)[0]
         else:
-            minimum = min(cost)
-        cost_overall.append(minimum)
-        best_index.append(cost.index(minimum))
+            if evaluation_function == fidelity_easy or evaluation_function == fidelity_hard:
+                best = max(cost)
+            else:
+                best = min(cost)
+        cost_overall.append(best)
+        best_index.append(cost.index(best))
     return cost_overall, best_index
 
 
 def get_best_overall(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter):
+    """Given an experiment with fixed hyperparameters, it returns the index of the best run and its convergence via classical optimizer"""
     best = []
     for i in range(n_iter):
         filename = get_filename(evaluation_function=evaluation_function, budget=budget, iteration=i, branches=branches, epsilon=epsilon, stop_deterministic=stop_deterministic, rollout_type=rollout_type, roll_out_steps=roll_out_steps,
@@ -213,15 +218,16 @@ def boxplot(evaluation_function, branches, roll_out_steps, rollout_type, epsilon
     solutions = []
     BUDGET = [1000, 2000, 5000, 10000, 50000, 100000, 200000, 300000, 400000, 600000]
 
-
     for budget in BUDGET:
         if not check_file_exist(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter):
             index = BUDGET.index(budget)
-            BUDGET.pop(index)
-            continue
+            BUDGET = BUDGET[:index]
+            break
 
         if gradient:
             sol = get_best_overall(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter)
+            if isinstance(sol, tuple):
+                sol = sol[0]
             solutions.append(sol)
         else:
             sol = best_in_path(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter)[0]
@@ -230,14 +236,15 @@ def boxplot(evaluation_function, branches, roll_out_steps, rollout_type, epsilon
     # Plotting
     budget_effective = [str(b) for b in BUDGET]
     print(budget_effective)
-    plt.boxplot(solutions, patch_artist=True, labels=budget_effective, meanline=True, showmeans=True, showfliers=True)
 
+    plt.boxplot(solutions, patch_artist=True, labels=budget_effective, meanline=True, showmeans=True, showfliers=True)
+    print([min(a) for a in solutions])
     benchmark = get_benchmark(evaluation_function)
     if evaluation_function == h2:
         plt.ylabel('Energy (Ha)')
         benchmark = round(benchmark[1], 3)
         label = 'bench_FCI'
-    elif evaluation_function == h2o:
+    elif evaluation_function == h2o or evaluation_function ==h2o_full:
         plt.ylabel('Energy (Ha)')
         benchmark = round(benchmark[1], 3)
         label = 'bench_FCI'
@@ -259,12 +266,10 @@ def boxplot(evaluation_function, branches, roll_out_steps, rollout_type, epsilon
         raise NotImplementedError
 
     plt.axhline(y=benchmark, color='r', linestyle='--', label=label)
-    filename = get_filename(evaluation_function=evaluation_function, branches=branches, image=True, roll_out_steps=roll_out_steps, rollout_type=rollout_type, iteration=0, epsilon=epsilon, stop_deterministic=stop_deterministic, budget=0)
+    filename = get_filename(evaluation_function=evaluation_function, branches=branches, image=True, roll_out_steps=roll_out_steps, rollout_type=rollout_type, iteration=0, epsilon=epsilon, stop_deterministic=stop_deterministic,  gradient=gradient, budget=0)
     plt.title(evaluation_function.__name__)
     plt.xlabel('MCTS Simulations')
     plt.legend()
-    if best:
-        filename = filename+'_best'
     plt.savefig(filename + '_boxplot.png')
 
     plt.clf()
@@ -304,6 +309,7 @@ def plot_gradient_descent(evaluation_function, branches, budget, roll_out_steps,
         else:
             plt.axhline(y=benchmark_value, color='r', linestyle='--', label=f'ADAPT-VQE({round(benchmark_value, 3)})')
     plt.legend()
+
 
     filename = get_filename(evaluation_function=evaluation_function, budget=budget, iteration=0, branches=branches,
                             epsilon=epsilon, stop_deterministic=stop_deterministic, rollout_type=rollout_type,
@@ -345,5 +351,5 @@ def get_benchmark(evaluation_function):
         return right_counts
     elif evaluation_function == lih:
         return -7.972
-    elif evaluation_function == h2o:
+    elif evaluation_function == h2o or evaluation_function == h2o_full:
         return -75.16, -75.49
