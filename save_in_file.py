@@ -5,7 +5,7 @@ import os.path
 import numpy as np
 from structure import Circuit
 import matplotlib.pyplot as plt
-from evaluation_functions import h2, vqls_1, sudoku2x2, h2o, lih, fidelity_easy, fidelity_hard, h2o_full
+from evaluation_functions import h2, vqls_1, sudoku2x2, h2o, lih, fidelity_easy, fidelity_hard, fidelity_5, fidelity_10, fidelity_15, fidelity_20, h2o_full
 from problems.oracles.grover.grover import grover_algo
 
 
@@ -13,14 +13,11 @@ from problems.oracles.grover.grover import grover_algo
 def get_filename(evaluation_function, budget, branches, iteration, epsilon, stop_deterministic, rollout_type, image, gradient=False, gate_set='continuous', roll_out_steps=None):
     """ it creates the string of the file name that have to be saved or read"""
 
-    ro = ''
-    ros = ''
+    ro = 'rollout_' + rollout_type + '/'
+    ros = '_rsteps_' + str(roll_out_steps)
     stop = ''
     if stop_deterministic:
         stop = '_stop'
-    if evaluation_function != sudoku2x2:
-        ro = 'rollout_' + rollout_type + '/'
-        ros = '_rsteps_' + str(roll_out_steps)
     if isinstance(branches, bool):
         if branches:
             branch = "dpw"
@@ -141,15 +138,9 @@ def best_in_path(evaluation_function, branches, budget, roll_out_steps, rollout_
         df = pd.read_pickle(filename + '.pkl')
         cost = df['cost'].tolist()
         if isinstance(cost[0], list):
-            if evaluation_function == fidelity_easy or evaluation_function == fidelity_hard:
-                best = max(cost)[0]
-            else:
-                best = min(cost)[0]
+            best = min(cost)[0]
         else:
-            if evaluation_function == fidelity_easy or evaluation_function == fidelity_hard:
-                best = max(cost)
-            else:
-                best = min(cost)
+            best = min(cost)
         cost_overall.append(best)
         best_index.append(cost.index(best))
     return cost_overall, best_index
@@ -216,7 +207,7 @@ def plot_cost(evaluation_function, branches, budget, roll_out_steps, rollout_typ
 def boxplot(evaluation_function, branches, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter, gradient):
     """ Save a boxplot image, with the stats on the n_iter independent runs vs the budget of mcts"""
     solutions = []
-    BUDGET = [1000, 2000, 5000, 10000, 50000, 100000, 200000, 300000, 400000, 600000]
+    BUDGET = [1000, 2000, 5000, 10000, 50000, 100000, 200000, 300000]#, 400000, 600000]
 
     for budget in BUDGET:
         if not check_file_exist(evaluation_function, branches, budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter):
@@ -240,32 +231,23 @@ def boxplot(evaluation_function, branches, roll_out_steps, rollout_type, epsilon
     plt.boxplot(solutions, patch_artist=True, labels=budget_effective, meanline=True, showmeans=True, showfliers=True)
     print([min(a) for a in solutions])
     benchmark = get_benchmark(evaluation_function)
-    if evaluation_function == h2:
-        plt.ylabel('Energy (Ha)')
-        benchmark = round(benchmark[1], 3)
-        label = 'bench_FCI'
-    elif evaluation_function == h2o or evaluation_function ==h2o_full:
-        plt.ylabel('Energy (Ha)')
-        benchmark = round(benchmark[1], 3)
-        label = 'bench_FCI'
-    elif evaluation_function == lih:
-        plt.ylabel('Energy (Ha)')
-        benchmark = round(benchmark, 3)
-        label = 'ADAPT-VQE'
-    elif evaluation_function == fidelity_easy or evaluation_function == fidelity_hard:
-        plt.ylabel('Fidelity')
-        benchmark = 0
-        label = 'benchmark'
-    elif evaluation_function == vqls_1:
-        label = 'benchmark'
-        plt.ylabel('Cost')
-    elif evaluation_function == sudoku2x2:
-        plt.ylabel('Right Counts')
-        label = 'exact_oracle'
-    else:
-        raise NotImplementedError
+    if benchmark is not None:
+        if evaluation_function == h2 or evaluation_function == h2o or evaluation_function ==h2o_full:
+            plt.ylabel('Energy (Ha)')
+            benchmark = round(benchmark[1], 3)
+            label = 'bench_FCI'
+        elif evaluation_function == lih:
+            plt.ylabel('Energy (Ha)')
+            benchmark = round(benchmark, 3)
+            label = 'ADAPT-VQE'
+        elif evaluation_function == sudoku2x2:
+            plt.ylabel('Counts')
+            label = 'exact_oracle'
+        else:
+            plt.ylabel('Cost')
+            label = 'benchmark'
+        plt.axhline(y=benchmark, color='r', linestyle='--', label=label)
 
-    plt.axhline(y=benchmark, color='r', linestyle='--', label=label)
     filename = get_filename(evaluation_function=evaluation_function, branches=branches, image=True, roll_out_steps=roll_out_steps, rollout_type=rollout_type, iteration=0, epsilon=epsilon, stop_deterministic=stop_deterministic,  gradient=gradient, budget=0)
     plt.title(evaluation_function.__name__)
     plt.xlabel('MCTS Simulations')
@@ -290,16 +272,15 @@ def plot_gradient_descent(evaluation_function, branches, budget, roll_out_steps,
                                 image=False)
         df = pd.read_pickle(filename + '.pkl')
         filtered_column = df[df['Adam'].apply(lambda x: x != [None])]['Adam']
+
         gd_values = filtered_column.tolist()[0]
         plt.plot(range(len(gd_values)), gd_values, marker='o', linestyle='-', label=str(b))
     plt.title(evaluation_function.__name__ + ' - Adam Optimizer')
 
-    benchmark_value = None
+    benchmark_value = get_benchmark(evaluation_function)
     if evaluation_function == h2 or evaluation_function == h2o or evaluation_function == lih:
-        benchmark_value = get_benchmark(evaluation_function)
         plt.ylabel('Energy (Ha)')
 
-    if benchmark_value is not None:
         if isinstance(benchmark_value, list) or isinstance(benchmark_value, tuple):
             plt.axhline(y=benchmark_value[0], color='r', linestyle='--',
                         label=f'bench_SCF({round(benchmark_value[0], 3)})')
@@ -308,6 +289,8 @@ def plot_gradient_descent(evaluation_function, branches, budget, roll_out_steps,
 
         else:
             plt.axhline(y=benchmark_value, color='r', linestyle='--', label=f'ADAPT-VQE({round(benchmark_value, 3)})')
+    else:
+        plt.axhline(y=benchmark_value, color='r', linestyle='--', label=f'bench({benchmark_value})')
     plt.legend()
 
 
@@ -353,3 +336,7 @@ def get_benchmark(evaluation_function):
         return -7.972
     elif evaluation_function == h2o or evaluation_function == h2o_full:
         return -75.16, -75.49
+    elif evaluation_function == fidelity_easy or evaluation_function == fidelity_hard or \
+        evaluation_function == fidelity_5 or evaluation_function == fidelity_10 or fidelity_15:
+        return .0
+

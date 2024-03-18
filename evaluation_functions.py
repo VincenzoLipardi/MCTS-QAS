@@ -1,11 +1,22 @@
 from problems.oracles.grover import grover
 from problems.vqe import h2_class, lih_class, h2o_class, h2o_full_class
+from problems.combinatorial import qaoa_class
 from problems.vqls import vqls_demo, vqls_paper
 from problems.oracles.oracle_approximation import Fidelity, CircuitRegeneration
 import heapq
 from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister, Aer, transpile
 
 
+def qaoa(quantum_circuit, ansatz='', cost=False, gradient=False):
+    problem = qaoa_class
+    if cost and gradient:
+        raise ValueError('Cannot return both cost/reward and gradient descent result')
+    if gradient:
+        return problem.gradient_descent(quantum_circuit=quantum_circuit)
+    if cost:
+        return problem.cost(quantum_circuit=quantum_circuit)
+    else:
+        return problem.reward(quantum_circuit=quantum_circuit)
 # ORACLE APPROXIMATION
 def qc_regeneration(quantum_circuit, cost=False, gradient=False):
     problem = CircuitRegeneration()
@@ -19,19 +30,55 @@ def qc_regeneration(quantum_circuit, cost=False, gradient=False):
         return problem.reward(quantum_circuit=quantum_circuit)
 
 
-def fidelity_5(quantum_circuit, cost=False, gradient=False):
-    problem = Fidelity(qubits=4, gates=5, difficulty='hard')
+def fidelity_20(quantum_circuit, ansatz='', cost=False, gradient=False):
+    problem = Fidelity(qubits=4, gates=15, difficulty='easy')
     if cost and gradient:
         raise ValueError('Cannot return both cost/reward and gradient descent result')
     if gradient:
         return problem.gradient_descent(quantum_circuit=quantum_circuit)
     if cost:
-        return -problem.reward(quantum_circuit=quantum_circuit)
+        return problem.cost(quantum_circuit=quantum_circuit)
     else:
         return problem.reward(quantum_circuit=quantum_circuit)
 
 
-def fidelity_easy(quantum_circuit, cost=False, gradient=False):
+def fidelity_15(quantum_circuit, ansatz='', cost=False, gradient=False):
+    problem = Fidelity(qubits=4, gates=15, difficulty='easy')
+    if cost and gradient:
+        raise ValueError('Cannot return both cost/reward and gradient descent result')
+    if gradient:
+        return problem.gradient_descent(quantum_circuit=quantum_circuit)
+    if cost:
+        return problem.cost(quantum_circuit=quantum_circuit)
+    else:
+        return problem.reward(quantum_circuit=quantum_circuit)
+
+
+def fidelity_10(quantum_circuit, ansatz='', cost=False, gradient=False):
+    problem = Fidelity(qubits=4, gates=10, difficulty='easy')
+    if cost and gradient:
+        raise ValueError('Cannot return both cost/reward and gradient descent result')
+    if gradient:
+        return problem.gradient_descent(quantum_circuit=quantum_circuit)
+    if cost:
+        return problem.cost(quantum_circuit=quantum_circuit)
+    else:
+        return problem.reward(quantum_circuit=quantum_circuit)
+
+
+def fidelity_5(quantum_circuit, ansatz='', cost=False, gradient=False):
+    problem = Fidelity(qubits=4, gates=5, difficulty='easy')
+    if cost and gradient:
+        raise ValueError('Cannot return both cost/reward and gradient descent result')
+    if gradient:
+        return problem.gradient_descent(quantum_circuit=quantum_circuit)
+    if cost:
+        return problem.cost(quantum_circuit=quantum_circuit)
+    else:
+        return problem.reward(quantum_circuit=quantum_circuit)
+
+
+def fidelity_easy(quantum_circuit, ansatz='', cost=False, gradient=False):
     problem = Fidelity(qubits=4, gates=30, difficulty='easy')
     if cost and gradient:
         raise ValueError('Cannot return both cost/reward and gradient descent result')
@@ -43,20 +90,20 @@ def fidelity_easy(quantum_circuit, cost=False, gradient=False):
         return problem.reward(quantum_circuit=quantum_circuit)
 
 
-def fidelity_hard(quantum_circuit, cost=False, gradient=False):
+def fidelity_hard(quantum_circuit, ansatz='', cost=False, gradient=False):
     problem = Fidelity(qubits=4, gates=30, difficulty='hard')
     if cost and gradient:
         raise ValueError('Cannot return both cost/reward and gradient descent result')
     if gradient:
         return problem.gradient_descent(quantum_circuit=quantum_circuit)
     if cost:
-        return -problem.reward(quantum_circuit=quantum_circuit)
+        return problem.cost(quantum_circuit=quantum_circuit)
     else:
         return problem.reward(quantum_circuit=quantum_circuit)
 
 
 # Evaluation Function for the Grover's Oracle (Sudoku 2x2)
-def sudoku2x2(quantum_circuit, n_solutions=2, gradient=False):
+def sudoku2x2(quantum_circuit, ansatz='', n_solutions=2, cost=False, gradient=False):
     """ Oracle Approximation
     :param gradient: bool. If True it applies gradient descent over the parameters of the quantum circuit in input
     :param quantum_circuit: quantum circuit approximating a quantum oracle
@@ -90,7 +137,10 @@ def sudoku2x2(quantum_circuit, n_solutions=2, gradient=False):
     if gradient:
         return gradient_descent()
     else:
-        return reward_func()
+        if cost:
+            return 1000-reward_func()
+        else:
+            return reward_func()
 
 
 # Oracle for A. Montanaro Quantum Monte Carlo

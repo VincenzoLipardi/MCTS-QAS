@@ -1,10 +1,10 @@
 import pennylane as qml
 from qiskit.quantum_info import state_fidelity, Statevector
 import numpy as np
-from qiskit_algorithms import optimizers, gradients
 from qiskit import QuantumCircuit, Aer, execute
 import pandas as pd
 from scipy import optimize
+#from qiskit.algorithms.optimizers import ADAM, gradient_descent
 
 
 def naive(matrix1, matrix2):
@@ -37,7 +37,7 @@ class Fidelity:
 
 
     def cost(self, quantum_circuit):
-        return -self.reward(quantum_circuit)
+        return 1-self.reward(quantum_circuit)
 
 
     def gradient_descent(self, quantum_circuit):
@@ -61,13 +61,11 @@ class Fidelity:
                     qc.h(qubits[0].index)
                 elif name == "cx":
                     qc.cx(qubits[0].index, qubits[1].index)
-            return state_fidelity(Statevector(qc), Statevector(self.circuit_bench))
+            return 1-state_fidelity(Statevector(qc), Statevector(self.circuit_bench))
 
-        print(costFunc(parameters))
 
         a = optimize.minimize(costFunc, np.array(parameters))
         parameters = a.jac
-
 
         return parameters, costFunc(parameters)
 
