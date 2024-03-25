@@ -17,6 +17,8 @@ def qaoa(quantum_circuit, ansatz='', cost=False, gradient=False):
         return problem.cost(quantum_circuit=quantum_circuit)
     else:
         return problem.reward(quantum_circuit=quantum_circuit)
+
+
 # ORACLE APPROXIMATION
 def qc_regeneration(quantum_circuit, cost=False, gradient=False):
     problem = CircuitRegeneration()
@@ -30,8 +32,8 @@ def qc_regeneration(quantum_circuit, cost=False, gradient=False):
         return problem.reward(quantum_circuit=quantum_circuit)
 
 
-def fidelity_20(quantum_circuit, ansatz='', cost=False, gradient=False):
-    problem = Fidelity(qubits=4, gates=15, difficulty='easy')
+def fidelity_8_20_easy(quantum_circuit, ansatz='', cost=False, gradient=False):
+    problem = Fidelity(qubits=8, gates=20, magic='easy')
     if cost and gradient:
         raise ValueError('Cannot return both cost/reward and gradient descent result')
     if gradient:
@@ -42,8 +44,8 @@ def fidelity_20(quantum_circuit, ansatz='', cost=False, gradient=False):
         return problem.reward(quantum_circuit=quantum_circuit)
 
 
-def fidelity_15(quantum_circuit, ansatz='', cost=False, gradient=False):
-    problem = Fidelity(qubits=4, gates=15, difficulty='easy')
+def fidelity_8_20_hard(quantum_circuit, ansatz='', cost=False, gradient=False):
+    problem = Fidelity(qubits=8, gates=20, magic='hard')
     if cost and gradient:
         raise ValueError('Cannot return both cost/reward and gradient descent result')
     if gradient:
@@ -54,8 +56,8 @@ def fidelity_15(quantum_circuit, ansatz='', cost=False, gradient=False):
         return problem.reward(quantum_circuit=quantum_circuit)
 
 
-def fidelity_10(quantum_circuit, ansatz='', cost=False, gradient=False):
-    problem = Fidelity(qubits=4, gates=10, difficulty='easy')
+def fidelity_6_20_easy(quantum_circuit, ansatz='', cost=False, gradient=False):
+    problem = Fidelity(qubits=6, gates=20, magic='easy')
     if cost and gradient:
         raise ValueError('Cannot return both cost/reward and gradient descent result')
     if gradient:
@@ -66,8 +68,8 @@ def fidelity_10(quantum_circuit, ansatz='', cost=False, gradient=False):
         return problem.reward(quantum_circuit=quantum_circuit)
 
 
-def fidelity_5(quantum_circuit, ansatz='', cost=False, gradient=False):
-    problem = Fidelity(qubits=4, gates=5, difficulty='easy')
+def fidelity_6_20_hard(quantum_circuit, ansatz='', cost=False, gradient=False):
+    problem = Fidelity(qubits=6, gates=20, magic='hard')
     if cost and gradient:
         raise ValueError('Cannot return both cost/reward and gradient descent result')
     if gradient:
@@ -78,8 +80,8 @@ def fidelity_5(quantum_circuit, ansatz='', cost=False, gradient=False):
         return problem.reward(quantum_circuit=quantum_circuit)
 
 
-def fidelity_easy(quantum_circuit, ansatz='', cost=False, gradient=False):
-    problem = Fidelity(qubits=4, gates=30, difficulty='easy')
+def fidelity_4_20_easy(quantum_circuit, ansatz='', cost=False, gradient=False):
+    problem = Fidelity(qubits=4, gates=20, magic='easy')
     if cost and gradient:
         raise ValueError('Cannot return both cost/reward and gradient descent result')
     if gradient:
@@ -90,8 +92,294 @@ def fidelity_easy(quantum_circuit, ansatz='', cost=False, gradient=False):
         return problem.reward(quantum_circuit=quantum_circuit)
 
 
-def fidelity_hard(quantum_circuit, ansatz='', cost=False, gradient=False):
-    problem = Fidelity(qubits=4, gates=30, difficulty='hard')
+def fidelity_4_20_hard(quantum_circuit, ansatz='', cost=False, gradient=False):
+    problem = Fidelity(qubits=4, gates=20, magic='hard')
+    if cost and gradient:
+        raise ValueError('Cannot return both cost/reward and gradient descent result')
+    if gradient:
+        return problem.gradient_descent(quantum_circuit=quantum_circuit)
+    if cost:
+        return problem.cost(quantum_circuit=quantum_circuit)
+    else:
+        return problem.reward(quantum_circuit=quantum_circuit)
+
+
+def fidelity_8_15_easy(quantum_circuit, ansatz='', cost=False, gradient=False):
+    problem = Fidelity(qubits=8, gates=15, magic='easy')
+    if cost and gradient:
+        raise ValueError('Cannot return both cost/reward and gradient descent result')
+    if gradient:
+        return problem.gradient_descent(quantum_circuit=quantum_circuit)
+    if cost:
+        return problem.cost(quantum_circuit=quantum_circuit)
+    else:
+        return problem.reward(quantum_circuit=quantum_circuit)
+
+
+def fidelity_8_15_hard(quantum_circuit, ansatz='', cost=False, gradient=False):
+    problem = Fidelity(qubits=8, gates=15, magic='hard')
+    if cost and gradient:
+        raise ValueError('Cannot return both cost/reward and gradient descent result')
+    if gradient:
+        return problem.gradient_descent(quantum_circuit=quantum_circuit)
+    if cost:
+        return problem.cost(quantum_circuit=quantum_circuit)
+    else:
+        return problem.reward(quantum_circuit=quantum_circuit)
+
+
+def fidelity_6_15_easy(quantum_circuit, ansatz='', cost=False, gradient=False):
+    problem = Fidelity(qubits=6, gates=15, magic='easy')
+    if cost and gradient:
+        raise ValueError('Cannot return both cost/reward and gradient descent result')
+    if gradient:
+        return problem.gradient_descent(quantum_circuit=quantum_circuit)
+    if cost:
+        return problem.cost(quantum_circuit=quantum_circuit)
+    else:
+        return problem.reward(quantum_circuit=quantum_circuit)
+
+
+def fidelity_6_15_hard(quantum_circuit, ansatz='', cost=False, gradient=False):
+    problem = Fidelity(qubits=6, gates=15, magic='hard')
+    if cost and gradient:
+        raise ValueError('Cannot return both cost/reward and gradient descent result')
+    if gradient:
+        return problem.gradient_descent(quantum_circuit=quantum_circuit)
+    if cost:
+        return problem.cost(quantum_circuit=quantum_circuit)
+    else:
+        return problem.reward(quantum_circuit=quantum_circuit)
+
+
+def fidelity_4_15_easy(quantum_circuit, ansatz='', cost=False, gradient=False):
+    problem = Fidelity(qubits=4, gates=15, magic='easy')
+    if cost and gradient:
+        raise ValueError('Cannot return both cost/reward and gradient descent result')
+    if gradient:
+        return problem.gradient_descent(quantum_circuit=quantum_circuit)
+    if cost:
+        return problem.cost(quantum_circuit=quantum_circuit)
+    else:
+        return problem.reward(quantum_circuit=quantum_circuit)
+
+
+def fidelity_4_15_hard(quantum_circuit, ansatz='', cost=False, gradient=False):
+    problem = Fidelity(qubits=4, gates=15, magic='hard')
+    if cost and gradient:
+        raise ValueError('Cannot return both cost/reward and gradient descent result')
+    if gradient:
+        return problem.gradient_descent(quantum_circuit=quantum_circuit)
+    if cost:
+        return problem.cost(quantum_circuit=quantum_circuit)
+    else:
+        return problem.reward(quantum_circuit=quantum_circuit)
+
+
+def fidelity_8_10_easy(quantum_circuit, ansatz='', cost=False, gradient=False):
+    problem = Fidelity(qubits=8, gates=10, magic='easy')
+    if cost and gradient:
+        raise ValueError('Cannot return both cost/reward and gradient descent result')
+    if gradient:
+        return problem.gradient_descent(quantum_circuit=quantum_circuit)
+    if cost:
+        return problem.cost(quantum_circuit=quantum_circuit)
+    else:
+        return problem.reward(quantum_circuit=quantum_circuit)
+
+
+def fidelity_8_10_hard(quantum_circuit, ansatz='', cost=False, gradient=False):
+    problem = Fidelity(qubits=8, gates=10, magic='hard')
+    if cost and gradient:
+        raise ValueError('Cannot return both cost/reward and gradient descent result')
+    if gradient:
+        return problem.gradient_descent(quantum_circuit=quantum_circuit)
+    if cost:
+        return problem.cost(quantum_circuit=quantum_circuit)
+    else:
+        return problem.reward(quantum_circuit=quantum_circuit)
+
+
+def fidelity_6_10_easy(quantum_circuit, ansatz='', cost=False, gradient=False):
+    problem = Fidelity(qubits=6, gates=10, magic='easy')
+    if cost and gradient:
+        raise ValueError('Cannot return both cost/reward and gradient descent result')
+    if gradient:
+        return problem.gradient_descent(quantum_circuit=quantum_circuit)
+    if cost:
+        return problem.cost(quantum_circuit=quantum_circuit)
+    else:
+        return problem.reward(quantum_circuit=quantum_circuit)
+
+
+def fidelity_6_10_hard(quantum_circuit, ansatz='', cost=False, gradient=False):
+    problem = Fidelity(qubits=6, gates=10, magic='hard')
+    if cost and gradient:
+        raise ValueError('Cannot return both cost/reward and gradient descent result')
+    if gradient:
+        return problem.gradient_descent(quantum_circuit=quantum_circuit)
+    if cost:
+        return problem.cost(quantum_circuit=quantum_circuit)
+    else:
+        return problem.reward(quantum_circuit=quantum_circuit)
+
+
+def fidelity_4_10_easy(quantum_circuit, ansatz='', cost=False, gradient=False):
+    problem = Fidelity(qubits=4, gates=10, magic='easy')
+    if cost and gradient:
+        raise ValueError('Cannot return both cost/reward and gradient descent result')
+    if gradient:
+        return problem.gradient_descent(quantum_circuit=quantum_circuit)
+    if cost:
+        return problem.cost(quantum_circuit=quantum_circuit)
+    else:
+        return problem.reward(quantum_circuit=quantum_circuit)
+
+
+def fidelity_4_10_hard(quantum_circuit, ansatz='', cost=False, gradient=False):
+    problem = Fidelity(qubits=4, gates=10, magic='hard')
+    if cost and gradient:
+        raise ValueError('Cannot return both cost/reward and gradient descent result')
+    if gradient:
+        return problem.gradient_descent(quantum_circuit=quantum_circuit)
+    if cost:
+        return problem.cost(quantum_circuit=quantum_circuit)
+    else:
+        return problem.reward(quantum_circuit=quantum_circuit)
+
+
+def fidelity_8_5_easy(quantum_circuit, ansatz='', cost=False, gradient=False):
+    problem = Fidelity(qubits=8, gates=5, magic='easy')
+    if cost and gradient:
+        raise ValueError('Cannot return both cost/reward and gradient descent result')
+    if gradient:
+        return problem.gradient_descent(quantum_circuit=quantum_circuit)
+    if cost:
+        return problem.cost(quantum_circuit=quantum_circuit)
+    else:
+        return problem.reward(quantum_circuit=quantum_circuit)
+
+
+def fidelity_8_5_hard(quantum_circuit, ansatz='', cost=False, gradient=False):
+    problem = Fidelity(qubits=8, gates=5, magic='hard')
+    if cost and gradient:
+        raise ValueError('Cannot return both cost/reward and gradient descent result')
+    if gradient:
+        return problem.gradient_descent(quantum_circuit=quantum_circuit)
+    if cost:
+        return problem.cost(quantum_circuit=quantum_circuit)
+    else:
+        return problem.reward(quantum_circuit=quantum_circuit)
+
+
+def fidelity_6_5_easy(quantum_circuit, ansatz='', cost=False, gradient=False):
+    problem = Fidelity(qubits=6, gates=5, magic='easy')
+    if cost and gradient:
+        raise ValueError('Cannot return both cost/reward and gradient descent result')
+    if gradient:
+        return problem.gradient_descent(quantum_circuit=quantum_circuit)
+    if cost:
+        return problem.cost(quantum_circuit=quantum_circuit)
+    else:
+        return problem.reward(quantum_circuit=quantum_circuit)
+
+
+def fidelity_6_5_hard(quantum_circuit, ansatz='', cost=False, gradient=False):
+    problem = Fidelity(qubits=6, gates=5, magic='hard')
+    if cost and gradient:
+        raise ValueError('Cannot return both cost/reward and gradient descent result')
+    if gradient:
+        return problem.gradient_descent(quantum_circuit=quantum_circuit)
+    if cost:
+        return problem.cost(quantum_circuit=quantum_circuit)
+    else:
+        return problem.reward(quantum_circuit=quantum_circuit)
+
+
+def fidelity_4_5_easy(quantum_circuit, ansatz='', cost=False, gradient=False):
+    problem = Fidelity(qubits=4, gates=5, magic='easy')
+    if cost and gradient:
+        raise ValueError('Cannot return both cost/reward and gradient descent result')
+    if gradient:
+        return problem.gradient_descent(quantum_circuit=quantum_circuit)
+    if cost:
+        return problem.cost(quantum_circuit=quantum_circuit)
+    else:
+        return problem.reward(quantum_circuit=quantum_circuit)
+
+
+def fidelity_4_5_hard(quantum_circuit, ansatz='', cost=False, gradient=False):
+    problem = Fidelity(qubits=4, gates=5, magic='hard')
+    if cost and gradient:
+        raise ValueError('Cannot return both cost/reward and gradient descent result')
+    if gradient:
+        return problem.gradient_descent(quantum_circuit=quantum_circuit)
+    if cost:
+        return problem.cost(quantum_circuit=quantum_circuit)
+    else:
+        return problem.reward(quantum_circuit=quantum_circuit)
+
+
+def fidelity_4_30_easy(quantum_circuit, ansatz='', cost=False, gradient=False):
+    problem = Fidelity(qubits=4, gates=30, magic='easy')
+    if cost and gradient:
+        raise ValueError('Cannot return both cost/reward and gradient descent result')
+    if gradient:
+        return problem.gradient_descent(quantum_circuit=quantum_circuit)
+    if cost:
+        return problem.cost(quantum_circuit=quantum_circuit)
+    else:
+        return problem.reward(quantum_circuit=quantum_circuit)
+
+
+def fidelity_4_30_hard(quantum_circuit, ansatz='', cost=False, gradient=False):
+    problem = Fidelity(qubits=4, gates=30, magic='hard')
+    if cost and gradient:
+        raise ValueError('Cannot return both cost/reward and gradient descent result')
+    if gradient:
+        return problem.gradient_descent(quantum_circuit=quantum_circuit)
+    if cost:
+        return problem.cost(quantum_circuit=quantum_circuit)
+    else:
+        return problem.reward(quantum_circuit=quantum_circuit)
+
+def fidelity_6_30_easy(quantum_circuit, ansatz='', cost=False, gradient=False):
+    problem = Fidelity(qubits=6, gates=30, magic='easy')
+    if cost and gradient:
+        raise ValueError('Cannot return both cost/reward and gradient descent result')
+    if gradient:
+        return problem.gradient_descent(quantum_circuit=quantum_circuit)
+    if cost:
+        return problem.cost(quantum_circuit=quantum_circuit)
+    else:
+        return problem.reward(quantum_circuit=quantum_circuit)
+
+
+def fidelity_6_30_hard(quantum_circuit, ansatz='', cost=False, gradient=False):
+    problem = Fidelity(qubits=6, gates=30, magic='hard')
+    if cost and gradient:
+        raise ValueError('Cannot return both cost/reward and gradient descent result')
+    if gradient:
+        return problem.gradient_descent(quantum_circuit=quantum_circuit)
+    if cost:
+        return problem.cost(quantum_circuit=quantum_circuit)
+    else:
+        return problem.reward(quantum_circuit=quantum_circuit)
+
+def fidelity_8_30_easy(quantum_circuit, ansatz='', cost=False, gradient=False):
+    problem = Fidelity(qubits=8, gates=30, magic='easy')
+    if cost and gradient:
+        raise ValueError('Cannot return both cost/reward and gradient descent result')
+    if gradient:
+        return problem.gradient_descent(quantum_circuit=quantum_circuit)
+    if cost:
+        return problem.cost(quantum_circuit=quantum_circuit)
+    else:
+        return problem.reward(quantum_circuit=quantum_circuit)
+
+
+def fidelity_8_30_hard(quantum_circuit, ansatz='', cost=False, gradient=False):
+    problem = Fidelity(qubits=8, gates=30, magic='hard')
     if cost and gradient:
         raise ValueError('Cannot return both cost/reward and gradient descent result')
     if gradient:
