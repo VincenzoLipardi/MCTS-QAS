@@ -431,6 +431,40 @@ def sudoku2x2(quantum_circuit, ansatz='', n_solutions=2, cost=False, gradient=Fa
             return reward_func()
 
 
+def sudoku(quantum_circuit, ansatz='', n_solutions=2, cost=False, gradient=False):
+    """ Oracle Approximation
+    :param gradient: bool. If True it applies gradient descent over the parameters of the quantum circuit in input
+    :param quantum_circuit: quantum circuit approximating a quantum oracle
+    :param n_solutions: We are supposed to know the number of solutions of the problem
+    :return: float. Reward
+    """
+    def reward_func():
+        gate = quantum_circuit.to_gate(label='Oracle Approx')
+        # n_iteration have to be generalised has np.pi/4*(np.sqrt(N/M))
+        counts = grover.grover_algo(oracle='approximation', oracle_gate=gate, iterations=2, ancilla=1)
+        tot_counts = sum(counts.values())
+
+        def check_constraints(solution):
+            values = [int(i) for i in solution]
+            return values[0] != values[1] and values[1] != values[3] and values[2] != values[3]
+
+        reward = 0
+        for sol in counts.keys():
+            if check_constraints(sol):
+                reward += counts[sol] / tot_counts
+        return reward
+
+    def gradient_descent():
+        return 0
+
+    if gradient:
+        return gradient_descent()
+    else:
+        if cost:
+            return 1 - reward_func()
+        else:
+            return reward_func()
+
 # Oracle for A. Montanaro Quantum Monte Carlo
 def oracle_function(quantum_circuit, function, x, shots):
     """

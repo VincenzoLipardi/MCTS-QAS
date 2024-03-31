@@ -1,25 +1,34 @@
 import save_in_file as sif
 from save_in_file import check_file_exist
-from evaluation_functions import h2, lih, h2o, vqls_0, vqls_1, sudoku2x2, fidelity_easy, fidelity_hard, fidelity_5, h2o_full
+import evaluation_functions as evf
 
-eval_func = [h2o]
+
+eval_func = [evf.fidelity_4_5_easy, evf.fidelity_4_5_hard, evf.fidelity_4_10_easy, evf.fidelity_4_10_hard,
+             evf.fidelity_4_15_easy, evf.fidelity_4_15_hard, evf.fidelity_4_20_easy, evf.fidelity_4_20_hard,
+             evf.fidelity_4_30_easy, evf.fidelity_4_30_hard,
+            evf.fidelity_6_5_easy, evf.fidelity_6_5_hard, evf.fidelity_6_10_easy, evf.fidelity_6_10_hard,
+             evf.fidelity_6_15_easy, evf.fidelity_6_15_hard, evf.fidelity_6_20_easy, evf.fidelity_6_20_hard,
+             evf.fidelity_6_30_easy, evf.fidelity_6_30_hard,
+            evf.fidelity_8_5_easy, evf.fidelity_8_5_hard, evf.fidelity_8_10_easy, evf.fidelity_8_10_hard,
+             evf.fidelity_8_15_easy, evf.fidelity_8_15_hard, evf.fidelity_8_20_easy, evf.fidelity_8_20_hard,
+             ]
 N_ITER = 10
-BUDGET = [1000, 2000, 5000, 10000, 50000, 100000, 200000, 300000]
-
+BUDGET = [1000, 2000, 5000, 10000, 50000, 100000]#, 200000, 300000]#, 400000, 600000]
+#BUDGET = [1000]
 BF = [False]
 
 ROTYPE = 'classic'
-ROSTEPS = [1]
+ROSTEPS = [1,2]
 p = {'a': 50, 'd': 10, 's': 20, 'c': 20, 'p': 0}
 EPS = None
 STOP = False
 MAX_DEPTH = 20      # Chosen by the hardware
-qubits = {'h2': 4, 'lih': 10, 'h2o': 8, 'vqls_1': 4, 'sudoku2x2': 5, 'fidelity_easy': 4, 'fidelity_hard': 4, 'fidelity_5': 4,  'h2o_full': 8}
+qubits = {'h2': 4, 'lih': 10, 'h2o': 8, 'vqls_1': 4, 'sudoku2x2': 5, 'h2o_full': 8}
 
 # Cost plot: convergence via mcts, boxplot of the best via mcts, boxplot after classical optimizer, convergence via classical optimizer
-plot = [False, False, True, False]
+plot = [True, True, False, False]
 run = False
-apply_gradient_descent = [False, False]
+apply_gradient_descent = [True, False]
 
 # Run Experiments
 for r in ROSTEPS:
@@ -28,7 +37,11 @@ for r in ROSTEPS:
             for b in BUDGET:
                 for i in range(N_ITER):
                     if run:
-                        sif.run_and_savepkl(evaluation_function=f, variable_qubits=qubits[f.__name__], ancilla_qubits=0, gate_set='continuous',
+                        if f.__name__[0] == 'f':
+                            n_qubits = int(f.__name__[9])
+                        else:
+                            n_qubits = qubits[f.__name__]
+                        sif.run_and_savepkl(evaluation_function=f, variable_qubits=n_qubits, ancilla_qubits=0, gate_set='continuous',
                                             rollout_type=ROTYPE, budget=b, branches=m, roll_out_steps=r, iteration=i, max_depth=MAX_DEPTH,
                                             choices=p, epsilon=EPS, stop_deterministic=STOP, verbose=True)
 

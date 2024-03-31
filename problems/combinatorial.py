@@ -62,9 +62,9 @@ class QAOA:
 
 qaoa_class = QAOA()
 # Class works - Implement Gradient Descent on the parameters and check if it return the right solution
-qc = QuantumCircuit(7)
+"""qc = QuantumCircuit(7)
 
-"""for i in range(len(qc.qubits)):
+for i in range(len(qc.qubits)):
     qc.h(i)
     if i == 3:
         qc.cx(2, 3)
@@ -73,6 +73,6 @@ qc = QuantumCircuit(7)
         qc.cx(3, 2)
         qc.cx(2, 3)
     else:
-        qc.u(2, 0.9, 1, i)"""
+        qc.u(2, 0.9, 1, i)
 print(qc)
-print(qaoa_class.costFunc(params=[0.1], quantum_circuit=qc))
+print(qaoa_class.costFunc(params=[0.1], quantum_circuit=qc))"""
