@@ -473,16 +473,3 @@ def oracle_interpolation(qubit, epsilon, steps):
     plt.tight_layout()
     plt.legend()
     plt.savefig('experiments/simulation_plot_'+str(qubit)+'_'+str(steps)+'.png')
-
-epsilon_values = [0.05, 0.1, 0.2]
-qubits=[4,6,8]
-for j in range(2):
-    for i in range(2):
-        oracle_interpolation(qubits[i], epsilon_values[i], steps=j)
-        
-for i in range(2):
-    colorplot_oracle(4, gates=(5,10,15,20, 30), accuracy=0.05, simulations=100000, steps=i)
-    colorplot_oracle(6, gates=(5,10,15,20, 30), accuracy=0.1, simulations=200000, steps=i)
-    colorplot_oracle(qubits=8, gates=(5,10,15,20), accuracy=0.15, simulations=200000, steps=i)
-
-
