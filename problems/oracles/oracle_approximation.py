@@ -18,12 +18,12 @@ def naive(matrix1, matrix2):
 
 
 class Fidelity:
-    def __init__(self, qubits, gates, difficulty):
+    def __init__(self, qubits, gates, magic):
         filename = 'problems/oracles/dataset/random_circuit_qubit_' + str(qubits) + '_gates_' + str(gates)
         df = pd.read_pickle(filename + '.pkl')
-        if difficulty == "easy":
+        if magic == "easy":
             choice = min(df['sre'])
-        elif difficulty == "hard":
+        elif magic == "hard":
             choice = min(df['sre'])
         else:
             raise NotImplementedError
