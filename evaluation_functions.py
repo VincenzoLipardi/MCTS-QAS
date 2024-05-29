@@ -409,7 +409,6 @@ def sudoku2x2(quantum_circuit, ansatz='', n_solutions=2, cost=False, gradient=Fa
         def check_constraints(solution):
             values = [int(i) for i in solution]
             return values[0] != values[1] and values[1] != values[3] and values[2] != values[3]
-        print(solution)
         reward = 0
         for sol in solution:
             if check_constraints(sol):
