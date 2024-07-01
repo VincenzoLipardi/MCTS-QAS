@@ -10,38 +10,35 @@ from problems.oracles.grover.grover import grover_algo
 from evaluation_functions import h2, vqls_1, sudoku, sudoku2x2, h2o, lih, h2o_full
 
 
-def get_filename(evaluation_function, criteria, budget, branches, iteration, epsilon, stop_deterministic, rollout_type, roll_out_steps, ucb, image, gradient=False, gate_set='continuous'):
-    """ it creates the string of the file name that have to be saved or read"""
-    ro = 'rollout_' + rollout_type + '/'
-    ros = '_rsteps_' + str(roll_out_steps)
-    stop = ''
-    if stop_deterministic:
-        stop = '_stop'
+def get_filename(evaluation_function, criteria, budget, branches, iteration, epsilon, stop_deterministic, rollout_type,
+                 roll_out_steps, ucb, image, gradient=False, gate_set='continuous'):
+    """Creates the filename string for saving or reading files."""
+    ro = f'rollout_{rollout_type}/'
+    ros = f'_rsteps_{roll_out_steps}'
+    stop = '_stop' if stop_deterministic else ''
+
     if isinstance(branches, bool):
-        if branches:
-            branch = "dpw"
-        else:
-            branch = "pw"
+        branch = "dpw" if branches else "pw"
     elif isinstance(branches, int):
-        branch = 'bf_' + str(branches)
+        branch = f'bf_{branches}'
     else:
-        raise TypeError
-    grad, eps = '', ''
-    if epsilon is not None:
-        eps = '_eps_'+str(epsilon)
-    if gradient:
-        grad = '_gd'
+        raise TypeError("Variable branches only accepts boolean and integer types")
+
+    eps = f'_eps_{epsilon}' if epsilon is not None else ''
+    grad = '_gd' if gradient else ''
+
     if image:
-        filename = branch + eps + ros + grad + stop
+        filename = f"{branch}{eps}{ros}{grad}{stop}"
         ro += 'images/'
     else:
-        filename = branch + eps + '_budget_' + str(budget) + ros + '_run_' + str(iteration)+grad+stop
-    ucb_ = 'ucb'+str(ucb)+'/'
-    directory = 'experiments/' + criteria + '/' + ucb_ + evaluation_function.__name__ + '/' + gate_set + '/' + ro
+        filename = f"{branch}{eps}_budget_{budget}{ros}_run_{iteration}{grad}{stop}"
+
+    ucb_dir = f'ucb{ucb}/'
+    directory = os.path.join('experiments', criteria, ucb_dir, evaluation_function.__name__, gate_set, ro)
     return directory, filename
 
 
-def run_and_savepkl(evaluation_function, criteria, variable_qubits, ancilla_qubits, budget, max_depth, iteration, branches, choices, epsilon, stop_deterministic, ucb, gate_set='continuous', rollout_type="classic", roll_out_steps=None, verbose=True):
+def run_and_savepkl(evaluation_function, criteria, variable_qubits, ancilla_qubits, budget, max_depth, iteration, branches, choices, epsilon, stop_deterministic, ucb, gate_set='continuous', rollout_type="classic", roll_out_steps=None, verbose=False):
     """
     It runs the mcts on the indicated problem and saves the result (the best path) in a .pkl file
     :param criteria: string. Criteria to choose the best children node.
@@ -65,14 +62,18 @@ def run_and_savepkl(evaluation_function, criteria, variable_qubits, ancilla_qubi
                                        epsilon=epsilon, stop_deterministic=stop_deterministic, image=False, ucb=ucb)
     if not os.path.exists(directory):
         os.makedirs(directory)
-        print("Directory created successfully!")
+        if verbose:
+            print("Directory created successfully!")
+
+
     if not os.path.exists(directory+filename+'.pkl'):
         if isinstance(choices, dict):
             pass
         elif isinstance(choices, list):
             choices = {'a': choices[0], 'd': choices[1], 's': choices[2], 'c': choices[3], 'p': choices[4]}
         else:
-            raise TypeError
+            raise TypeError("The variable choices have to be defines as type dictionary or list")
+
         # Define the root note
         root = mcts.Node(Circuit(variable_qubits=variable_qubits, ancilla_qubits=ancilla_qubits), max_depth=max_depth)
         # Run the mcts algorithm
@@ -84,10 +85,11 @@ def run_and_savepkl(evaluation_function, criteria, variable_qubits, ancilla_qubi
 
         print("File has been saved as:", directory+filename)
     else:
+
         print('File already exists:', directory+filename)
 
 
-def add_columns(evaluation_function, criteria, budget, n_iter, branches, epsilon, stop_deterministic, roll_out_steps, rollout_type, gradient, ucb, gate_set='continuous'):
+def add_columns(evaluation_function, criteria, budget, n_iter, branches, epsilon, stop_deterministic, roll_out_steps, rollout_type, gradient, ucb, gate_set='continuous', verbose=False):
     """Adds the column of the cost function during the search, and apply the gradient descent on the best circuit and save it the column Adam"""
     # Get best paths
     qc_path = get_paths(evaluation_function, criteria, branches, budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, ucb, n_iter)[0]
@@ -96,8 +98,9 @@ def add_columns(evaluation_function, criteria, budget, n_iter, branches, epsilon
         directory, filename = get_filename(evaluation_function, criteria, budget, branches, ucb=ucb, iteration=i, gate_set=gate_set, rollout_type=rollout_type, roll_out_steps=roll_out_steps, epsilon=epsilon, stop_deterministic=stop_deterministic, image=False)
         df = pd.read_pickle(directory + filename + '.pkl')
         if 'cost' in df.columns:
-            print('Cost column already created')
             column_cost = df['cost']
+            if verbose:
+                print('Cost column already created')
         else:
             # Create column of the cost values along the tree path
             column_cost = list(map(lambda x: evaluation_function(x, cost=True), qc_path[i]))
@@ -105,7 +108,8 @@ def add_columns(evaluation_function, criteria, budget, n_iter, branches, epsilon
             df['cost'] = column_cost
         if gradient:
             if 'Adam' in df.columns:
-                print('Angle parameter optimization already performed')
+                if verbose:
+                    print('Angle parameter optimization already performed')
             else:
                 # Get last circuit in the tree path
                 quantum_circuit_last = qc_path[i][-1]
@@ -116,15 +120,21 @@ def add_columns(evaluation_function, criteria, budget, n_iter, branches, epsilon
                 column_adam[-1] = final_result
 
                 # Apply gradient on the best circuit if the best is not the last in the path
-                index = column_cost.idxmin()
-                if index != len(qc_path[i]):
+                if isinstance(column_cost, list):
+                    index = column_cost.index(min(column_cost))
+                else:
+                    column_cost = np.array(column_cost)
+                    # index = column_cost.idxmin()
+                    index = np.argmin(column_cost)
+                if index != len(qc_path[i])-1:
                     quantum_circuit_best = qc_path[i][index]
                     best_result = evaluation_function(quantum_circuit_best, ansatz='', cost=False, gradient=True)
                     column_adam[index] = best_result
                 df["Adam"] = column_adam
 
         df.to_pickle(os.path.join(directory+filename + '.pkl'))
-        print('Columns added to: ', directory+filename)
+        if verbose:
+            print('Columns added to: ', directory+filename)
 
 
 
@@ -136,7 +146,8 @@ def get_paths(evaluation_function, criteria, branches, budget, roll_out_steps, r
     children, visits, value = [], [], []
     for i in range(n_iter):
         directory, filename = get_filename(evaluation_function, criteria, budget, branches, iteration=i, rollout_type=rollout_type, epsilon=epsilon, stop_deterministic=stop_deterministic, roll_out_steps=roll_out_steps, image=False, ucb=ucb)
-
+        if os.path.getsize(directory+filename+".pkl") == 0:
+            raise EOFError(f"The file {directory+filename} is empty.")
         if os.path.isfile(directory+filename+'.pkl'):
             df = pd.read_pickle(directory+filename+'.pkl')
             qc_along_path.append([circuit for circuit in df['qc']])
@@ -144,7 +155,7 @@ def get_paths(evaluation_function, criteria, branches, budget, roll_out_steps, r
             value.append(df['value'].tolist())
             visits. append(df['visits'].tolist())
         else:
-            return FileNotFoundError
+            raise FileNotFoundError("The file named "+directory+filename+" does not exists")
     return qc_along_path, children, visits, value
 
 
@@ -179,7 +190,7 @@ def get_best_overall(evaluation_function, criteria, branches, budget, roll_out_s
 
 
 # PLOTS
-def plot_cost(evaluation_function, criteria, branches, budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter, ucb, benchmark=None):
+def plot_cost(evaluation_function, criteria, branches, budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter, ucb, verbose, benchmark=None):
     """It saves the convergence plot of the cost vs tree depth"""
 
     plt.xlabel('Tree Depth')
@@ -219,18 +230,20 @@ def plot_cost(evaluation_function, criteria, branches, budget, roll_out_steps, r
     plt.title(evaluation_function.__name__ + ' - Budget  '+str(budget))
     filename = filename + '_budget_'+str(budget)
     plt.savefig(directory+filename + '_cost_along_path.png')
-    print('Plot of the cost along the path saved in image', directory+filename)
+    if verbose:
+        print('Plot of the cost along the path saved in image', directory+filename)
     plt.clf()
 
 
-def boxplot(evaluation_function, budget, criteria, branches, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter, gradient, ucb):
+def boxplot(evaluation_function, budget, criteria, branches, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter, gradient, ucb, verbose=False):
     """ Save a boxplot image, with the stats on the n_iter independent runs vs the budget of mcts"""
     solutions = []
 
     ucb_ = '/' + 'ucb'+str(ucb)
     if not os.path.exists('experiments/'+criteria+ucb_+'/'+evaluation_function.__name__+'/continuous/rollout_'+rollout_type+'/images'):
         os.makedirs('experiments/'+criteria+ucb_+'/'+evaluation_function.__name__+'/continuous/rollout_'+rollout_type+'/images')
-        print("Directory created successfully!")
+        if verbose:
+            print("Directory created successfully!")
     for b in budget:
         if not check_file_exist(evaluation_function, criteria, branches, b, roll_out_steps, rollout_type, epsilon, stop_deterministic, ucb, n_iter):
             index = budget.index(b)
@@ -250,7 +263,8 @@ def boxplot(evaluation_function, budget, criteria, branches, roll_out_steps, rol
     budget_effective = [str(b) for b in budget]
 
     plt.boxplot(solutions, patch_artist=True, labels=budget_effective, meanline=True, showmeans=True, showfliers=True)
-    print([min(a) for a in solutions])
+    if verbose:
+        print([min(a) for a in solutions])
     benchmark = get_benchmark(evaluation_function)
     if benchmark is not None:
         if evaluation_function == h2 or evaluation_function == h2o or evaluation_function ==h2o_full:
@@ -276,11 +290,12 @@ def boxplot(evaluation_function, budget, criteria, branches, roll_out_steps, rol
     plt.savefig(directory+filename + '_boxplot.png')
 
     plt.clf()
-    print('boxplot image saved in ', directory+filename)
+    if verbose:
+        print('boxplot image saved in ', directory+filename)
     return solutions
 
 
-def plot_gradient_descent(evaluation_function, criteria, branches, budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter, ucb):
+def plot_gradient_descent(evaluation_function, criteria, branches, budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter, ucb, verbose):
 
     plt.xlabel('Steps')
     plt.ylabel('Cost')
@@ -319,7 +334,9 @@ def plot_gradient_descent(evaluation_function, criteria, branches, budget, roll_
                                         roll_out_steps=roll_out_steps, image=True, ucb=ucb)
     plt.savefig(directory+filename+'_gd.png')
     plt.clf()
-    return print('Gradient descent image saved in ', directory+filename)
+    if verbose:
+        print('Gradient descent image saved in ', directory+filename)
+    return gd_values
 
 
 # Utils
@@ -457,6 +474,7 @@ def oracle_interpolation(qubit, epsilon, steps):
     plt.tight_layout()
     plt.legend()
     plt.savefig('experiments/simulation_plot_'+str(qubit)+'_'+str(steps)+'.png')
+
 
 
 def grid_search(hyperparameters):
