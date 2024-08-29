@@ -1,15 +1,19 @@
-This is the Github repository hosting code and experiments of the article: ...
+This is the Github repository hosting code and experiments of the article: "Quantum Circuit Design through Monte Carlo Tree Search".
 
 # Environment setup
-All the file are written in python and the libraries needed to successfully run the code are listed in the requirements.txt.
+All the scripts are written in python. In order to run these scripts follow the steps below:
+- clone the repository
+- setup a conda environment (or virtual environment)
+- install the requirements with the following command: pip install -r requirements.txt
+
 
 # Tutorial
-A tutorial into the library is provided in the Jupyter Notebook file "tutorial.ipynb" .
+In the Jupyter Notebook file "tutorial.ipynb" you can find a guided tutorial into the main functionality of the repository.
 
 # Monte Carlo Tree Search for Quantum Circuit Design
 In this project we have further investigated the role of Monte Carlo Tree Search within the domain of quantum architecture search.
 We have carried out experiments for finding the ground state energy in quantum chemistry problems (VQE),
-for solving systems of linear equations (VQLS) and for the general problem of oracle approximation.
+for solving systems of linear equations (VQLS), for the general problem of oracle approximation.
 
 ## All-in-one MCTS
 Despite the previous work we used MCTS to find both the topology the parametrized quantum circuits 
