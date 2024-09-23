@@ -1,7 +1,8 @@
 import random
 import numpy as np
-from structure import Circuit, GateSet
+from structure import Circuit, GateSet, update_ngrams, update_conditional_results
 from qiskit import QuantumCircuit
+from collections import defaultdict, Counter
 
 
 class Node:
@@ -149,6 +150,41 @@ class Node:
             raise TypeError("the variable criteria must be a string")
         return best
 
+    def simulation(self, simulation_strategy, qubit):
+        """
+        Simulates the most likely gates for a specific qubit based on the conditional probabilities
+        extracted from the n-gram statistics.
+
+        :param simulation_strategy: dict. The n-gram conditional probabilities for each qubit.
+        :param qubit: int. The specific qubit to simulate gates for.
+        :return: Node. A new child node with an updated quantum circuit.
+        """
+        qc = self.state.circuit.copy()
+
+        ngrams_quality = simulation_strategy[qubit]
+        last_gate = qc.data[-1][0].name if qc.data else None
+        gates_ngram, quality_ngram = [], []
+        for ngram, quality_scores in ngrams_quality.items():
+            if isinstance(ngram, tuple) and last_gate in ngram[-1]:
+                gates_ngram.append(ngram[0])
+                quality_ngram.append(quality_scores[0])
+        quality_ngram = [-q if q < 0 else 0 for q in quality_ngram]
+        quality_ngram = quality_ngram/np.linalg.norm(quality_ngram) 
+        if gates_ngram and sum(quality_ngram) > 0:
+            next_gate = random.choices(gates_ngram, weights=quality_ngram, k=1)[0]
+            
+            if next_gate in ['rx', 'ry', 'rz']:
+                getattr(qc, next_gate)(random.uniform(0, 2 * np.pi), qubit)
+            elif next_gate == 'cx':
+                target_qubit = random.choice([q for q in range(qc.num_qubits) if q != qubit])
+                qc.cx(qubit, target_qubit)
+
+        # Create a new child node with the updated quantum circuit
+        new_state = Circuit(qc.num_qubits, qc.num_clbits).building_state(qc)
+        new_node = Node(new_state, max_depth=self.max_depth, parent=self)
+        # print("Qubit chosen", qubit)
+        return new_node
+
 
 def node_from_qc(quantum_circuit: QuantumCircuit, parent_node: Node, roll_out: bool) -> Node:
     if isinstance(quantum_circuit, QuantumCircuit):
@@ -176,10 +212,20 @@ def expand(node: Node, prob_choice: dict, stop_deterministic: bool) -> Node:
     return new_node
 
 
-def rollout(node: Node, steps: int) -> Node:
+def rollout(node: Node, steps: int, simulation_strategy) -> Node:
     new_node = node
-    for i in range(steps):
-        new_node = new_node.define_children(prob_choice={'a': 100, 'd': 0, 's': 0, 'c': 0, 'p': 0}, roll_out=True, stop_deterministic=False)
+    for _ in range(steps):
+        if simulation_strategy and any(simulation_strategy.values()):
+            print("Rollout step", _)
+            if random.uniform(0, 1) >= 0.1:
+                print("N-grams chosen")
+                last_qubit_modified = new_node.state.circuit.data[-1][1].index
+                new_node = new_node.simulation(simulation_strategy, qubit=last_qubit_modified)
+            
+            else:
+                new_node = new_node.define_children(prob_choice={'a': 100, 'd': 0, 's': 0, 'c': 0, 'p': 0}, roll_out=True, stop_deterministic=False)
+        else:
+            new_node = new_node.define_children(prob_choice={'a': 100, 'd': 0, 's': 0, 'c': 0, 'p': 0}, roll_out=True, stop_deterministic=False)
     return new_node
 
 
@@ -206,14 +252,12 @@ def modify_prob_choice(dictionary: dict, len_qc: int) -> dict:
     return dict(zip(keys, modified_values))
 
 
-def commit(epsilon: float, current_node: Node, criteria: str) -> Node:
+def commit(current_node: Node, criteria: str) -> Node:
     # It commits to the best action if the node has explored enough
-    if epsilon is not None:
-        if random.uniform(0, 1) >= epsilon:
-            return current_node.best_child(criteria=criteria)
     return current_node.best_child(criteria=criteria)
 
-def mcts(root: Node, budget: int, evaluation_function, criteria: str, rollout_type: str, roll_out_steps: int, branches, choices: dict, epsilon: float, stop_deterministic: bool, ucb_value: float = 0.4, pw_C=1, pw_alpha=0.3,
+
+def mcts(root: Node, budget: int, evaluation_function, criteria: str, rollout_type: str, roll_out_steps: int, simulation: bool,  branches, choices: dict, epsilon: float, stop_deterministic: bool, ucb_value: float = 0.4, pw_C=1, pw_alpha=0.3,
          verbose: bool = False) -> dict:
 
     prob_choice = {'a': 100, 'd': 0, 's': 0, 'c': 0}
@@ -223,12 +267,25 @@ def mcts(root: Node, budget: int, evaluation_function, criteria: str, rollout_ty
 
     evaluate(root, evaluation_function)
     root.visits = 1
+    n_qubits = len(root.state.circuit.qubits)
+    if simulation:
+        qubit_ngrams_counter = {q: Counter() for q in range(n_qubits)}
+        quality_results_by_qubit = defaultdict(lambda: defaultdict(list))
+        n = 2
+    else:
+        qubit_ngrams_counter, quality_results_by_qubit = None, None
+        n = None
 
     for epoch_counter in range(budget):
         current_node = root
 
         if current_node.visits > budget/20 and len(current_node.children) > 2:
-            root = commit(epsilon, current_node, criteria)
+            if epsilon is not None:
+                if random.uniform(0, 1) >= epsilon:
+                    root = commit(current_node, criteria)
+            else:
+                root = commit(current_node, criteria)
+
             if verbose:
                 print('Committed to', root)
             current_node = root
@@ -252,7 +309,7 @@ def mcts(root: Node, budget: int, evaluation_function, criteria: str, rollout_ty
         # Simulation
         if not current_node.isTerminal:
             if isinstance(roll_out_steps, int):
-                leaf_node = rollout(current_node, steps=roll_out_steps)
+                leaf_node = rollout(current_node, steps=roll_out_steps, simulation_strategy=quality_results_by_qubit)
                 result = evaluate(leaf_node, evaluation_function)
 
                 if roll_out_steps > 1 and rollout_type != "classic":
@@ -278,8 +335,13 @@ def mcts(root: Node, budget: int, evaluation_function, criteria: str, rollout_ty
 
         # Backpropagation
         backpropagate(current_node, result)
+        # N-GRAMS
+        if simulation:
+            
+            qubit_ngrams_counter = update_ngrams(current_node.state.circuit, n, qubit_ngrams_counter)
+            quality_results_by_qubit = update_conditional_results(qubit_ngrams_counter, quality_results_by_qubit, result)
+            print("Updated n-grams \n n-grams counter: ", qubit_ngrams_counter, "/n n-grams Quality: ", quality_results_by_qubit)
 
-        n_qubits = len(current_node.state.circuit.qubits)
         if current_node.tree_depth == 2*n_qubits:
             prob_choice = choices
 

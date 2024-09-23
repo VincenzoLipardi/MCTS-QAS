@@ -1,6 +1,7 @@
 import random
 import math
 import numpy as np
+from collections import defaultdict
 from typing import Callable, Dict, Tuple, Union
 from qiskit import QuantumCircuit, QuantumRegister
 from qiskit.circuit.library import RYGate, RXGate, RZGate, HGate, CXGate
@@ -246,3 +247,54 @@ def check_equivalence(qc1, qc2):
     Op1 = Operator(qc1)
     Op2 = Operator(qc2)
     return Op1.equiv(Op2)
+
+
+
+# SIMULATION STRATEGY: NGRAMS
+# Function to build n-grams for a list of gates
+def extract_gate_sequence_by_qubit(circuit):
+    qubit_gates = defaultdict(list)
+
+    for instruction in circuit.data:
+        gate = instruction[0].name  # Extract gate name
+        qubits = instruction[1]  # Extract the qubits this gate is applied to
+        for qubit in qubits:
+            qubit_gates[circuit.find_bit(qubit).index].append(gate)  # Record the gate applied on those qubits
+
+    # Ensure all qubits are represented (even if no gates applied)
+    for q in range(len(circuit.qubits)):
+        if q not in qubit_gates:
+            qubit_gates[q] = []
+    return qubit_gates
+
+
+# Function to build n-grams for a list of gates
+def build_ngrams(gate_sequence, n):
+    return [tuple(gate_sequence[i:i + n]) for i in range(len(gate_sequence) - n + 1)]
+
+
+# Function to update n-grams for each qubit as circuits are processed
+def update_ngrams(circuit, n, qubit_ngrams_counter):
+    qubit_gates = extract_gate_sequence_by_qubit(circuit)
+    n_qubits = len(circuit.qubits)
+
+    for qubit in range(n_qubits):
+        gate_sequence = qubit_gates[qubit]
+        ngrams = build_ngrams(gate_sequence, n)
+        qubit_ngrams_counter[qubit].update(ngrams)
+
+    return qubit_ngrams_counter
+
+
+# Function to update conditional results based on quality measure
+def update_conditional_results(qubit_ngrams_counter, quality_results_by_qubit, quality_score):
+    for qubit, ngrams_counter in qubit_ngrams_counter.items():
+        for ngram, count in ngrams_counter.items():
+            if ngram not in quality_results_by_qubit[qubit]:
+                quality_results_by_qubit[qubit][ngram] = (quality_score, 1)
+            else:
+                counter = quality_results_by_qubit[qubit][ngram][1]
+                average_quality = (quality_results_by_qubit[qubit][ngram][0]+quality_score)/counter
+                quality_results_by_qubit[qubit][ngram] = (average_quality, counter+1)
+
+    return quality_results_by_qubit

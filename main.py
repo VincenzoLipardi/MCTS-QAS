@@ -3,19 +3,19 @@ import evaluation_functions as evf
 from multiprocessing import Pool
 
 N_ITER = 10
-ROTYPE = 'max'
-UCB = [0.4, 0.5, 0.6, 0.7]
+ROTYPE = 'classic'
+UCB = [0.4]
 p = {'a': 50, 'd': 10, 's': 20, 'c': 20, 'p': 0}
 EPS = None
 STOP = False
 MAX_DEPTH = 20      # Chosen by the hardware
 CRITERIA = ['average_value', 'value']
 N_QUBITS = {'h2': 4, 'lih': 10, 'h2o': 8, 'vqls_1': 4, 'sudoku': 5, 'sudoku2x2': 5, 'h2o_full': 8}
-ROLL = [1, 2, 5]
+ROLL = [2]
 GATES = [5, 10, 15, 20, 30]
 ITERATIONS = list(range(10))
-BUDGET = [1000, 2000, 5000, 10000, 50000, 100000]   #, 200000, 300000
-
+#BUDGET = [1000, 2000, 5000, 10000, 50000, 100000]   #, 200000, 300000
+BUDGET = [500]
 
 
 apply_gradient_descent = False
@@ -23,9 +23,10 @@ PLOT = [True, True, False, False]
 plot_oracle = False
 process_pool = True
 start = "run"
+SIM = True
 
 
-functions = [evf.h2, evf.lih]
+functions = [evf.h2]
 
 
 def run(function, budget, rollout_steps, iter, ucb, criteria):
@@ -36,7 +37,7 @@ def run(function, budget, rollout_steps, iter, ucb, criteria):
 
     sif.run_and_savepkl(evaluation_function=function, criteria=criteria, variable_qubits=n_qubits, ancilla_qubits=0,
                     gate_set='continuous', rollout_type=ROTYPE, budget=budget, branches=False,
-                    roll_out_steps=rollout_steps, iteration=iter, max_depth=MAX_DEPTH, choices=p, epsilon=EPS,
+                    roll_out_steps=rollout_steps, iteration=iter, max_depth=MAX_DEPTH, choices=p, epsilon=EPS,simulation=SIM,
                     stop_deterministic=STOP, ucb=ucb, verbose=False)
 
 

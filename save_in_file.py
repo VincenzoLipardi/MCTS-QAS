@@ -34,11 +34,11 @@ def get_filename(evaluation_function, criteria, budget, branches, iteration, eps
         filename = f"{branch}{eps}_budget_{budget}{ros}_run_{iteration}{grad}{stop}"
 
     ucb_dir = f'ucb{ucb}/'
-    directory = os.path.join('experiments', criteria, ucb_dir, evaluation_function.__name__, gate_set, ro)
+    directory = os.path.join('experiments/n-grams', criteria, ucb_dir, evaluation_function.__name__, gate_set, ro)
     return directory, filename
 
 
-def run_and_savepkl(evaluation_function, criteria, variable_qubits, ancilla_qubits, budget, max_depth, iteration, branches, choices, epsilon, stop_deterministic, ucb, gate_set='continuous', rollout_type="classic", roll_out_steps=None, verbose=False):
+def run_and_savepkl(evaluation_function, criteria, variable_qubits, ancilla_qubits, budget, max_depth, iteration, branches, choices, epsilon, stop_deterministic, ucb, simulation, gate_set='continuous', rollout_type="classic", roll_out_steps=None, verbose=False):
     """
     It runs the mcts on the indicated problem and saves the result (the best path) in a .pkl file
     :param criteria: string. Criteria to choose the best children node.
@@ -77,7 +77,7 @@ def run_and_savepkl(evaluation_function, criteria, variable_qubits, ancilla_qubi
         # Define the root note
         root = mcts.Node(Circuit(variable_qubits=variable_qubits, ancilla_qubits=ancilla_qubits), max_depth=max_depth)
         # Run the mcts algorithm
-        final_state = mcts.mcts(root, budget=budget, branches=branches, evaluation_function=evaluation_function, criteria=criteria, rollout_type=rollout_type, roll_out_steps=roll_out_steps,
+        final_state = mcts.mcts(root, budget=budget, branches=branches, evaluation_function=evaluation_function, criteria=criteria, rollout_type=rollout_type, roll_out_steps=roll_out_steps, simulation=simulation,
                                 choices=choices, epsilon=epsilon, stop_deterministic=stop_deterministic, ucb_value=ucb, verbose=verbose)
         # Create the name of the pickle file where the results will be saved in
         df = pd.DataFrame(final_state)
