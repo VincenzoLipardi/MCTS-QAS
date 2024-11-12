@@ -1,17 +1,21 @@
 import random
 import math
 import numpy as np
+from collections import defaultdict
+from typing import Callable, Dict, Tuple, Union
 from qiskit import QuantumCircuit, QuantumRegister
 from qiskit.circuit.library import RYGate, RXGate, RZGate, HGate, CXGate
 from qiskit.quantum_info import Operator
 
 
 class Circuit:
-    def __init__(self, variable_qubits, ancilla_qubits, initialization='h'):
+    def __init__(self, variable_qubits: int, ancilla_qubits: int, initialization: str = 'h'):
         """
-        It builds the first quantum circuit regarding the target problem
-        :param variable_qubits: integer. Number of qubits necessary to encode the problem variables
-        :param ancilla_qubits: integer. Number of ancilla qubits (hyperparameter)
+        Initializes the quantum circuit for the target problem.
+
+        :param variable_qubits: Number of qubits necessary to encode the problem variables
+        :param ancilla_qubits:  Number of ancilla qubits (hyperparameter)
+        :param initialization: Initialization method for qubits ('h', 'equal_superposition', or 'hadamard')
         """
         # self.variable_qubits = variable_qubits
         # self.ancilla_qubits = ancilla_qubits
@@ -28,31 +32,46 @@ class Circuit:
         # NISQ CONTROL
         self.is_nisq = None
 
-    def building_state(self, quantum_circuit):
-        """Given a quantum circuit in qiskit, it creates an instance into the Circuit class"""
+    def building_state(self, quantum_circuit: QuantumCircuit) -> 'Circuit':
+        """
+        Creates an instance of the Circuit class with a given quantum circuit in qiskit.
+
+        :param quantum_circuit: A Qiskit QuantumCircuit object
+        :return: The updated Circuit instance
+        """
         self.circuit = quantum_circuit
         return self
 
-    def nisq_control(self, max_depth):
-        """ Check if it is executable on a nisq device. Our definition comes from IBM devices
-        :param max_depth: integer. Max quantum circuit depth due to the hardware constraint (NISQ).
-        :return: False if the depth is beyond teh Rollout_max depth
+    def nisq_control(self, max_depth: int) -> bool:
         """
-        if self.circuit.depth() >= max_depth:
-            nisq_control = False
-        else:
-            nisq_control = True
-        self.is_nisq = nisq_control
-        return nisq_control
+        Checks if the circuit is executable on a NISQ device.
 
-    def evaluation(self, evaluation_function):
-        """ Evaluate the circuit through an evaluation function to be given in input together with its variables
-        :return: float. Reward
+        :param max_depth: Max quantum circuit depth due to hardware constraints
+        :return: False if the depth exceeds max_depth, else True
         """
-        reward = evaluation_function(self.circuit)
-        return reward
+        self.is_nisq = self.circuit.depth() < max_depth
+        return self.is_nisq
 
-    def get_legal_action(self, gate_set, max_depth, prob_choice, stop):
+    def evaluation(self, evaluation_function: Callable[[QuantumCircuit], float]) -> float:
+        """
+        Evaluates the circuit using a given evaluation function.
+
+        :param evaluation_function: A function that evaluates the quantum circuit
+        :return: The value of the evaluation function for the input quantum circuit
+        """
+        return evaluation_function(self.circuit)
+
+    def get_legal_action(self, gate_set: 'GateSet', max_depth: int, prob_choice: Dict[str, float], stop: bool) -> Tuple[
+        Callable, str]:
+        """
+        Determines a legal action for modifying the circuit.
+
+        :param gate_set: The set of gates available for application
+        :param max_depth: The maximum allowable depth of the quantum circuit
+        :param prob_choice: Probability distribution for choosing actions
+        :param stop: Boolean flag indicating whether to stop actions
+        :return: A tuple containing the action and its string identifier
+        """
         if stop:
             prob_choice['p'] = 0
         if self.is_nisq is None:
@@ -62,18 +81,22 @@ class Circuit:
             prob_choice['d'] = 50
 
         keys = list(prob_choice.keys())
-        probabilities = list(prob_choice.values())
-        probabilities = np.array(probabilities) / sum(probabilities)
+        probabilities = np.array(list(prob_choice.values())) / sum(prob_choice.values())
         action_str = np.random.choice(keys, p=probabilities)
         action = actions_on_circuit(action_chosen=action_str, gate_set=gate_set)
-        if action is not None and callable(action):
+
+        if action and callable(action):
             return action, action_str
-        else:
-            raise NotImplementedError
+        raise NotImplementedError("Action not implemented or callable")
 
 
 class GateSet:
-    def __init__(self, gate_type='continuous'):
+    def __init__(self, gate_type: str = 'continuous'):
+        """
+        Initializes the gate set.
+
+        :param gate_type: Type of gate set ('discrete' (Clifford generators+T) or 'continuous'(CNOT+single qubit rotations))
+        """
         self.gate_type = gate_type
         if self.gate_type == 'discrete':
             gates = ['s', 'cx', 'h', 't']
@@ -85,14 +108,15 @@ class GateSet:
         self.pool = gates
 
 
-def actions_on_circuit(action_chosen, gate_set):
+def actions_on_circuit(action_chosen: str, gate_set: GateSet) -> Callable[
+    [QuantumCircuit], Union[QuantumCircuit, None]]:
     """
-    It modifies the quantum circuit depending on the action required in
-    :param gate_set: Universal Gate Set chosen for the application
-    :param action_chosen: str. Action chosen to apply on the circuit
-    :return: new quantum circuit
-    """
+    Modifies the quantum circuit depending on the action required.
 
+    :param action_chosen: Action chosen to apply on the circuit
+    :param gate_set: Universal Gate Set chosen for the application
+    :return: A function that applies the chosen action on the circuit
+    """
     def add_gate(quantum_circuit):
         """ Pick a random one-qubit (two-qubit) gate to add on random qubit(s) """
         qc = quantum_circuit.copy()
@@ -101,27 +125,21 @@ def actions_on_circuit(action_chosen, gate_set):
         choice = random.choice(gate_set.pool)
         if choice == 'cx':
             qc.cx(qubits[0], qubits[1])
-        elif choice == 'ry':
-            qc.ry(angle, qubits[0])
-        elif choice == 'rx':
-            qc.rx(angle, qubits[0])
-        elif choice == 'rz':
-            qc.rz(angle, qubits[0])
-        elif choice == 'x':
-            qc.x(qubits[0])
-        elif choice == 'y':
-            qc.y(qubits[0])
-        elif choice == 'z':
-            qc.z(qubits[0])
-        elif choice == 'h':
-            qc.h(qubits[0])
-        elif choice == 't':
-            qc.t(qubits[0])
-        elif choice == 's':
-            qc.s(qubits[0])
+        else:
+            gate_map = {
+                'ry': RYGate(angle),
+                'rx': RXGate(angle),
+                'rz': RZGate(angle),
+                'h': HGate(),
+                't': lambda: qc.t(qubits[0]),
+                's': lambda: qc.s(qubits[0])
+            }
+            gate = gate_map.get(choice)
+            if gate:
+                qc.append(gate, [qubits[0]])
         return qc
 
-    def delete_gate(quantum_circuit):
+    def delete_gate(quantum_circuit: QuantumCircuit) -> Union[QuantumCircuit, None]:
         """ It removes a random gate from the input quantum circuit  """
         qc = quantum_circuit.copy()
         if len(qc.data) < 4:
@@ -130,15 +148,14 @@ def actions_on_circuit(action_chosen, gate_set):
         qc.data.remove(qc.data[position])
         return qc
 
-    def swap(quantum_circuit):
-        """ It removes a gate in a random position and replace it with a new gate randomly chosen """
+    def swap(quantum_circuit: QuantumCircuit) -> Union[QuantumCircuit, None]:
+        """ Swaps a gate in a random position with a new randomly chosen gate """
 
         angle = random.random() * 2 * math.pi
-        if len(quantum_circuit.data) > 1:
-            position = random.randint(0, len(quantum_circuit.data) - 2)
-        else:
+        if len(quantum_circuit.data) <= 1:
             return None
 
+        position = random.randint(0, len(quantum_circuit.data) - 2)
         gate_to_remove = quantum_circuit.data[position]
         gate_to_add_str = random.choice(gate_set.pool[1:])
         gate_to_add = get_gate(gate_to_add_str, angle=angle)
@@ -182,32 +199,31 @@ def actions_on_circuit(action_chosen, gate_set):
         qc.data[position][0].params[0] = gate_to_change.params[0] + random.uniform(0, 0.2)
         return qc
 
-    def stop():
-        """ It marks the node as terminal"""
+    def stop()-> str:
+        """ Marks the node as terminal"""
         return 'stop'
 
     # Define a mapping between input strings and methods
-    dict_actions = {'a': add_gate, 'd': delete_gate, 's': swap, 'c': change, 'p': stop}
-    action = dict_actions.get(action_chosen, None)
-    return action
+    actions = {'a': add_gate, 'd': delete_gate, 's': swap, 'c': change, 'p': stop}
+    return actions.get(action_chosen, None)
 
 
-def get_gate(gate_str, angle=None):
+def get_gate(gate_str: str, angle: float = None) -> Union[HGate, CXGate, RXGate, RYGate, RZGate]:
     """
-    Get the qiskit object representing the specified gate.
-    Returns: qiskit object: Qiskit gate object.
-    """
+    Returns the Qiskit gate object corresponding to the given gate string.
 
-    if gate_str == 'h':
-        return HGate()
-    elif gate_str == 'cx':
-        return CXGate()
-    elif gate_str == 'rx':
-        return RXGate(theta=angle)
-    elif gate_str == 'ry':
-        return RYGate(theta=angle)
-    elif gate_str == 'rz':
-        return RZGate(phi=angle)
+    :param gate_str: The gate identifier string
+    :param angle: The angle parameter for rotation gates
+    :return: The corresponding Qiskit gate object
+    """
+    gate_map = {
+        'h': HGate(),
+        'cx': CXGate(),
+        'rx': RXGate(angle),
+        'ry': RYGate(angle),
+        'rz': RZGate(angle)
+    }
+    return gate_map.get(gate_str)
 
 
 def get_action_from_str(input_string, gate_set):
@@ -231,3 +247,54 @@ def check_equivalence(qc1, qc2):
     Op1 = Operator(qc1)
     Op2 = Operator(qc2)
     return Op1.equiv(Op2)
+
+
+
+# SIMULATION STRATEGY: NGRAMS
+# Function to build n-grams for a list of gates
+def extract_gate_sequence_by_qubit(circuit):
+    qubit_gates = defaultdict(list)
+
+    for instruction in circuit.data:
+        gate = instruction[0].name  # Extract gate name
+        qubits = instruction[1]  # Extract the qubits this gate is applied to
+        for qubit in qubits:
+            qubit_gates[circuit.find_bit(qubit).index].append(gate)  # Record the gate applied on those qubits
+
+    # Ensure all qubits are represented (even if no gates applied)
+    for q in range(len(circuit.qubits)):
+        if q not in qubit_gates:
+            qubit_gates[q] = []
+    return qubit_gates
+
+
+# Function to build n-grams for a list of gates
+def build_ngrams(gate_sequence, n):
+    return [tuple(gate_sequence[i:i + n]) for i in range(len(gate_sequence) - n + 1)]
+
+
+# Function to update n-grams for each qubit as circuits are processed
+def update_ngrams(circuit, n, qubit_ngrams_counter):
+    qubit_gates = extract_gate_sequence_by_qubit(circuit)
+    n_qubits = len(circuit.qubits)
+
+    for qubit in range(n_qubits):
+        gate_sequence = qubit_gates[qubit]
+        ngrams = build_ngrams(gate_sequence, n)
+        qubit_ngrams_counter[qubit].update(ngrams)
+
+    return qubit_ngrams_counter
+
+
+# Function to update conditional results based on quality measure
+def update_conditional_results(qubit_ngrams_counter, quality_results_by_qubit, quality_score):
+    for qubit, ngrams_counter in qubit_ngrams_counter.items():
+        for ngram, count in ngrams_counter.items():
+            if ngram not in quality_results_by_qubit[qubit]:
+                quality_results_by_qubit[qubit][ngram] = (quality_score, 1)
+            else:
+                counter = quality_results_by_qubit[qubit][ngram][1]
+                average_quality = (quality_results_by_qubit[qubit][ngram][0]+quality_score)/counter
+                quality_results_by_qubit[qubit][ngram] = (average_quality, counter+1)
+
+    return quality_results_by_qubit

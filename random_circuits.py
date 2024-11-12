@@ -22,7 +22,6 @@ def save_pkl(qubits: int, gates: int, samples=10):
 
 
 
-
 def stats(filename):
     df = pd.read_pickle(filename+'.pkl')
 
@@ -87,3 +86,5 @@ def plot_sre(qubits: int, gates: int):
     plt.legend()
 
     plt.savefig(filename+'.png')
+    return print('Image saved as ', filename)
+

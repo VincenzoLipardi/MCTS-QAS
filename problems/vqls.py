@@ -205,12 +205,13 @@ class VQLS:
 
             conv = np.abs(cost[-1] - prev_energy)
 
-            if n % 2 == 0:
-                print(f"Step = {n},  Cost = {cost[-1]:.8f}")
+            """if n % 2 == 0:
+                print(f"Step = {n},  Cost = {cost[-1]:.8f}")"""
 
             if conv <= conv_tol:
                 print('Landscape is flat')
                 break
+        print("\n" f"Final value of the cost function is  {cost[-1]:.4f} ")
         return cost
 
 
