@@ -238,10 +238,9 @@ def plot_cost(evaluation_function, criteria, branches, budget, roll_out_steps, r
 def boxplot(evaluation_function, budget, criteria, branches, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter, gradient, ucb, verbose=False):
     """ Save a boxplot image, with the stats on the n_iter independent runs vs the budget of mcts"""
     solutions = []
-
     ucb_ = '/' + 'ucb'+str(ucb)
-    if not os.path.exists('experiments/'+criteria+ucb_+'/'+evaluation_function.__name__+'/continuous/rollout_'+rollout_type+'/images'):
-        os.makedirs('experiments/'+criteria+ucb_+'/'+evaluation_function.__name__+'/continuous/rollout_'+rollout_type+'/images')
+    if not os.path.exists('experiments/n-grams/'+criteria+ucb_+'/'+evaluation_function.__name__+'/continuous/rollout_'+rollout_type+'/images'):
+        os.makedirs('experiments/n-grams/'+criteria+ucb_+'/'+evaluation_function.__name__+'/continuous/rollout_'+rollout_type+'/images')
         if verbose:
             print("Directory created successfully!")
     for b in budget:
@@ -284,6 +283,7 @@ def boxplot(evaluation_function, budget, criteria, branches, roll_out_steps, rol
         plt.axhline(y=benchmark, color='r', linestyle='--', label=label)
 
     directory, filename = get_filename(evaluation_function=evaluation_function, criteria=criteria, branches=branches, image=True, roll_out_steps=roll_out_steps, rollout_type=rollout_type, iteration=0, epsilon=epsilon, stop_deterministic=stop_deterministic, ucb=ucb, gradient=gradient, budget=0)
+    print(filename)
     plt.title(evaluation_function.__name__)
     plt.xlabel('MCTS Simulations')
     plt.legend()
@@ -386,7 +386,7 @@ def colorplot_oracle(criteria, qubits, gates, accuracy, simulations, steps, ucb)
             count = 0
             for run in range(10):
 
-                df = pd.read_pickle('experiments/'+criteria+ucb_+'/fidelity_'+str(qubits)+'_'+str(gates[i])+magic[j]+'/continuous/rollout_classic/pw_budget_'+str(simulations)+'_rsteps_'+str(steps)+'_run_'+str(run)+'.pkl')
+                df = pd.read_pickle('experiments/n-grams/'+criteria+ucb_+'/fidelity_'+str(qubits)+'_'+str(gates[i])+magic[j]+'/continuous/rollout_classic/pw_budget_'+str(simulations)+'_rsteps_'+str(steps)+'_run_'+str(run)+'.pkl')
                 cost = df['cost'].tolist()
                 if isinstance(cost[0], list):
                     best = min(cost)[0]
@@ -406,7 +406,7 @@ def colorplot_oracle(criteria, qubits, gates, accuracy, simulations, steps, ucb)
     plt.xticks(range(len(gates)), gates)
     plt.yticks([0, 1], ['easy', 'hard'])
     plt.grid(False)
-    plt.savefig('experiments/'+criteria+ucb_+'/colormap_'+str(qubits)+'_'+str(steps)+'_acc'+str(accuracy)+'.png')
+    plt.savefig('experiments/n-grams/'+criteria+ucb_+'/colormap_'+str(qubits)+'_'+str(steps)+'_acc'+str(accuracy)+'.png')
     print('Image saved')
 
 

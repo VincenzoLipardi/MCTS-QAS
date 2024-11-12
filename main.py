@@ -12,21 +12,23 @@ MAX_DEPTH = 20      # Chosen by the hardware
 CRITERIA = ['average_value', 'value']
 N_QUBITS = {'h2': 4, 'lih': 10, 'h2o': 8, 'vqls_1': 4, 'sudoku': 5, 'sudoku2x2': 5, 'h2o_full': 8}
 ROLL = [2]
+SIM = True
 GATES = [5, 10, 15, 20, 30]
 ITERATIONS = list(range(10))
-#BUDGET = [1000, 2000, 5000, 10000, 50000, 100000]   #, 200000, 300000
-BUDGET = [500]
+BUDGET = [1000, 2000, 5000, 10000, 50000, 100000]
+
+
+plot_oracle = False
+process_pool = True
 
 
 apply_gradient_descent = False
 PLOT = [True, True, False, False]
-plot_oracle = False
-process_pool = True
-start = "run"
-SIM = True
+start = "plot"
 
 
-functions = [evf.h2]
+
+functions = [evf.vqls_1]
 
 
 def run(function, budget, rollout_steps, iter, ucb, criteria):
@@ -37,7 +39,7 @@ def run(function, budget, rollout_steps, iter, ucb, criteria):
 
     sif.run_and_savepkl(evaluation_function=function, criteria=criteria, variable_qubits=n_qubits, ancilla_qubits=0,
                     gate_set='continuous', rollout_type=ROTYPE, budget=budget, branches=False,
-                    roll_out_steps=rollout_steps, iteration=iter, max_depth=MAX_DEPTH, choices=p, epsilon=EPS,simulation=SIM,
+                    roll_out_steps=rollout_steps, iteration=iter, max_depth=MAX_DEPTH, choices=p, epsilon=EPS, simulation=SIM,
                     stop_deterministic=STOP, ucb=ucb, verbose=False)
 
 
@@ -95,7 +97,7 @@ elif start == 'gd':
 elif start == 'plot':
     combinations = [(k, i, c, u) for k in functions for i in ROLL for c in CRITERIA for u in UCB]
 else:
-    raise ValueError("What exactly do you want to do with this main.py")
+    raise ValueError("What exactly do you want to do with this main.py? Choose between run, gd and plot")
 
 if process_pool:
     with Pool() as processing_pool:
@@ -111,7 +113,7 @@ if plot_oracle:
         for u in UCB:
             for c in CRITERIA:
                 for a in [0.01, 0.05, 0.1, 0.2]:
-                    for q in [4, 6]:
+                    for q in [8]:
                         sif.colorplot_oracle(criteria=c, qubits=q, gates=GATES, accuracy=a, simulations=100000, steps=s, ucb=u)
 
 
