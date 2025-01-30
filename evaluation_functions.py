@@ -1,6 +1,6 @@
 from problems.oracles.grover import grover
 from problems.vqe import h2_class, lih_class, h2o_class, h2o_full_class
-from problems.combinatorial import maxcut_class
+# from problems.combinatorial import maxcut_class
 from problems.vqls import vqls_demo, vqls_paper
 from problems.oracles.oracle_approximation import Fidelity, CircuitRegeneration
 import heapq
