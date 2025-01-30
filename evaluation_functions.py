@@ -1,22 +1,22 @@
 from problems.oracles.grover import grover
 from problems.vqe import h2_class, lih_class, h2o_class, h2o_full_class
-from problems.combinatorial import qaoa_class
+from problems.combinatorial import maxcut_class
 from problems.vqls import vqls_demo, vqls_paper
 from problems.oracles.oracle_approximation import Fidelity, CircuitRegeneration
 import heapq
 from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister, Aer, transpile
 
 
-def qaoa(quantum_circuit, ansatz='', cost=False, gradient=False):
-    problem = qaoa_class
+def maxcut(quantum_circuit, ansatz='', cost=False, gradient=False):
+    problem = maxcut_class
     if cost and gradient:
         raise ValueError('Cannot return both cost/reward and gradient descent result')
     if gradient:
         return problem.gradient_descent(quantum_circuit=quantum_circuit)
     if cost:
-        return problem.cost(quantum_circuit=quantum_circuit)
+        return problem.costFunc(params=[0.1], quantum_circuit=quantum_circuit)
     else:
-        return problem.reward(quantum_circuit=quantum_circuit)
+        return problem.getReward(params=[0.1], quantum_circuit=quantum_circuit)
 
 
 # ORACLE APPROXIMATION

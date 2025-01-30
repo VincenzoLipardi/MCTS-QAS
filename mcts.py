@@ -216,9 +216,9 @@ def rollout(node: Node, steps: int, simulation_strategy) -> Node:
     new_node = node
     for _ in range(steps):
         if simulation_strategy and any(simulation_strategy.values()):
-            print("Rollout step", _)
+            #print("Rollout step", _)
             if random.uniform(0, 1) >= 0.1:
-                print("N-grams chosen")
+                #print("N-grams chosen")
                 last_qubit_modified = new_node.state.circuit.data[-1][1].index
                 new_node = new_node.simulation(simulation_strategy, qubit=last_qubit_modified)
             
@@ -262,10 +262,13 @@ def mcts(root: Node, budget: int, evaluation_function, criteria: str, rollout_ty
 
     prob_choice = {'a': 100, 'd': 0, 's': 0, 'c': 0}
     original_root = root
+    
+
     if verbose:
         print('Root Node:\n', root)
 
-    evaluate(root, evaluation_function)
+    best_overall_value = evaluate(root, evaluation_function)
+    best_overall_qc = root.state.circuit
     root.visits = 1
     n_qubits = len(root.state.circuit.qubits)
     if simulation:
@@ -329,6 +332,10 @@ def mcts(root: Node, budget: int, evaluation_function, criteria: str, rollout_ty
 
         else:
             result = evaluate(current_node, evaluation_function)
+            if result > best_overall_value:
+                best_overall_value = result
+                best_overall_qc = current_node.state.circuit
+
 
         if verbose:
             print('Reward: ', result)
@@ -340,7 +347,7 @@ def mcts(root: Node, budget: int, evaluation_function, criteria: str, rollout_ty
             
             qubit_ngrams_counter = update_ngrams(current_node.state.circuit, n, qubit_ngrams_counter)
             quality_results_by_qubit = update_conditional_results(qubit_ngrams_counter, quality_results_by_qubit, result)
-            print("Updated n-grams \n n-grams counter: ", qubit_ngrams_counter, "/n n-grams Quality: ", quality_results_by_qubit)
+            #print("Updated n-grams \n n-grams counter: ", qubit_ngrams_counter, "/n n-grams Quality: ", quality_results_by_qubit)
 
         if current_node.tree_depth == 2*n_qubits:
             prob_choice = choices
@@ -358,4 +365,4 @@ def mcts(root: Node, budget: int, evaluation_function, criteria: str, rollout_ty
         value.append(best_node.value)
         visits.append(best_node.visits)
         best_node = best_node.best_child(criteria=criteria)
-    return {'qc': qc_path, 'children': children, 'visits': visits, 'value': value}
+    return {'qc': qc_path, 'children': children, 'visits': visits, 'value': value,'best_overall_qc': best_overall_qc, 'best_overall_value': best_overall_value}

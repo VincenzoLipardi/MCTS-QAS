@@ -3,7 +3,7 @@ from qiskit.quantum_info import Operator, Statevector
 from structure import GateSet, Circuit, actions_on_circuit
 from qiskit import QuantumCircuit, Aer, execute
 from itertools import product
-#from qiskit_ibm_runtime import QiskitRuntimeService, Estimator, Session
+
 import numpy as np
 
 

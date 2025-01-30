@@ -34,7 +34,7 @@ def get_filename(evaluation_function, criteria, budget, branches, iteration, eps
         filename = f"{branch}{eps}_budget_{budget}{ros}_run_{iteration}{grad}{stop}"
 
     ucb_dir = f'ucb{ucb}/'
-    directory = os.path.join('experiments/n-grams', criteria, ucb_dir, evaluation_function.__name__, gate_set, ro)
+    directory = os.path.join('experiments', criteria, ucb_dir, evaluation_function.__name__, gate_set, ro)
     return directory, filename
 
 
@@ -83,10 +83,21 @@ def run_and_savepkl(evaluation_function, criteria, variable_qubits, ancilla_qubi
         df = pd.DataFrame(final_state)
         df.to_pickle(os.path.join(directory+filename + '.pkl'))
 
+
         print("File has been saved as:", directory+filename)
     else:
 
         print('File already exists:', directory+filename)
+
+def safe_read_pickle(file_path):
+    try:
+        return pd.read_pickle(file_path)
+    except _pickle.UnpicklingError as e:
+        print(f"Error reading pickle file: {e}")
+        # Handle the error, e.g., by returning None or a default value
+        return None
+
+
 
 
 def add_columns(evaluation_function, criteria, budget, n_iter, branches, epsilon, stop_deterministic, roll_out_steps, rollout_type, gradient, ucb, gate_set='continuous', verbose=False):
@@ -99,6 +110,7 @@ def add_columns(evaluation_function, criteria, budget, n_iter, branches, epsilon
         df = pd.read_pickle(directory + filename + '.pkl')
         if 'cost' in df.columns:
             column_cost = df['cost']
+            # print(column_cost)
             if verbose:
                 print('Cost column already created')
         else:
@@ -166,6 +178,7 @@ def best_in_path(evaluation_function, criteria, branches, budget, roll_out_steps
         directory, filename = get_filename(evaluation_function, criteria, budget, branches, iteration=i, rollout_type=rollout_type, epsilon=epsilon, stop_deterministic=stop_deterministic, roll_out_steps=roll_out_steps, image=False, ucb=ucb)
         df = pd.read_pickle(directory+filename + '.pkl')
         cost = df['cost'].tolist()
+        
         if isinstance(cost[0], list):
             best = min(cost)[0]
         else:
@@ -174,6 +187,23 @@ def best_in_path(evaluation_function, criteria, branches, budget, roll_out_steps
         best_index.append(cost.index(best))
     return cost_overall, best_index
 
+def best_run(evaluation_function, criteria, branches, budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter, ucb):
+    """ It returns the list of the costs of best solution for all the independent runs right after mcts"""
+    best_over_runs = 10
+    best_index = 0
+    for i in range(n_iter):
+        directory, filename = get_filename(evaluation_function, criteria, budget, branches, iteration=i, rollout_type=rollout_type, epsilon=epsilon, stop_deterministic=stop_deterministic, roll_out_steps=roll_out_steps, image=False, ucb=ucb)
+        df = pd.read_pickle(directory+filename + '.pkl')
+        cost = df['cost'].tolist()
+        if isinstance(cost[0], list):
+            best = min(cost)[0]
+        else:
+            best = min(cost)
+        if best < best_over_runs:
+            best_over_runs = best
+            best_index = i
+
+    return best_over_runs, best_index
 
 def get_best_overall(evaluation_function, criteria, branches, budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter, ucb):
     """Given an experiment with fixed hyperparameters, it returns the index of the best run and its convergence via classical optimizer"""
@@ -190,6 +220,7 @@ def get_best_overall(evaluation_function, criteria, branches, budget, roll_out_s
 
 
 # PLOTS
+
 def plot_cost(evaluation_function, criteria, branches, budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter, ucb, verbose, benchmark=None):
     """It saves the convergence plot of the cost vs tree depth"""
 
@@ -234,13 +265,78 @@ def plot_cost(evaluation_function, criteria, branches, budget, roll_out_steps, r
         print('Plot of the cost along the path saved in image', directory+filename)
     plt.clf()
 
+def plot_best_results(evaluation_functions, fixed_budget, criteria, branches, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter, gradient, ucb, verbose=False):
+    """ Plot the best result across different evaluation functions for a fixed budget in MCTS simulations. """
+
+    # Define specific colors for the plots
+    colors = ['blue', 'red']
+    ucb_ = '/' + 'ucb'+str(ucb)
+
+    # Create a figure and a set of subplots
+    fig, ax1 = plt.subplots(figsize=(10, 6))
+
+    # Plotting the results for the first evaluation function
+    ax2 = ax1.twinx()  # Create a second y-axis
+    function_name = ["LiH", "H2O"]
+    for idx, evaluation_function in enumerate(evaluation_functions):
+        solutions_per_branch = []
+        for b in branches:
+            solutions = []
+
+            if gradient:
+                sol = get_best_overall(evaluation_function, criteria, b, fixed_budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter, ucb)
+                if isinstance(sol, tuple):
+                    sol = sol[0]
+                solutions.append(sol)
+            else:
+                sol = best_in_path(evaluation_function, criteria, b, fixed_budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter, ucb)[0]
+                solutions.append(sol)
+            if solutions:  # Check if solutions is not empty
+                solutions_per_branch.append((np.mean(solutions), np.std(solutions)))
+            else:
+                print(f"No solutions found for branch {b}. Skipping this branch.")
+                solutions_per_branch.append((None, None))
+        
+        # Extract means and standard deviations
+        means = [s[0] for s in solutions_per_branch if s[0] is not None]
+        stds = [s[1] for s in solutions_per_branch if s[1] is not None]
+        valid_branches = [b for b, s in zip(branches, solutions_per_branch) if s[0] is not None]
+
+        # Choose the axis based on the index
+        ax = ax1 if idx == 0 else ax2
+
+        # Plot each evaluation function with a different color
+        ax.plot(valid_branches, means, marker='o', linestyle='-', color=colors[idx], label=function_name[idx])
+        ax.fill_between(valid_branches, [m - s for m, s in zip(means, stds)], [m + s for m, s in zip(means, stds)], color=colors[idx], alpha=0.2)
+
+    # Set plot details
+    # ax1.set_title("Branching Factor")
+    ax1.set_xticks(branches)
+    ax1.set_xticklabels([str(b) if b is not False else 'PW' for b in branches], color='black')
+    ax1.set_xlabel('Branching Factor', color='black')
+    ax1.set_ylabel('Cost LiH', color='blue')
+    ax2.set_ylabel('Cost H2O', color='red')
+    ax1.grid(True)
+
+    # Create a combined legend
+    lines, labels = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax1.legend(lines + lines2, labels + labels2, loc='upper left')
+
+    print(solutions_per_branch)
+    # Save the plot
+    directory = 'experiments/'+criteria+ucb_+'/images/'
+    filename = 'branch_study'+'_budget_'+str(fixed_budget)+'.png'
+    print(directory, filename)
+    plt.savefig(directory + filename)
+    plt.clf()
 
 def boxplot(evaluation_function, budget, criteria, branches, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter, gradient, ucb, verbose=False):
     """ Save a boxplot image, with the stats on the n_iter independent runs vs the budget of mcts"""
     solutions = []
     ucb_ = '/' + 'ucb'+str(ucb)
-    if not os.path.exists('experiments/n-grams/'+criteria+ucb_+'/'+evaluation_function.__name__+'/continuous/rollout_'+rollout_type+'/images'):
-        os.makedirs('experiments/n-grams/'+criteria+ucb_+'/'+evaluation_function.__name__+'/continuous/rollout_'+rollout_type+'/images')
+    if not os.path.exists('experiments/'+criteria+ucb_+'/'+evaluation_function.__name__+'/continuous/rollout_'+rollout_type+'/images'):
+        os.makedirs('experiments/'+criteria+ucb_+'/'+evaluation_function.__name__+'/continuous/rollout_'+rollout_type+'/images')
         if verbose:
             print("Directory created successfully!")
     for b in budget:
@@ -257,35 +353,39 @@ def boxplot(evaluation_function, budget, criteria, branches, roll_out_steps, rol
         else:
             sol = best_in_path(evaluation_function, criteria, branches, b, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter, ucb)[0]
             solutions.append(sol)
-
     # Plotting
     budget_effective = [str(b) for b in budget]
 
     plt.boxplot(solutions, patch_artist=True, labels=budget_effective, meanline=True, showmeans=True, showfliers=True)
     if verbose:
-        print([min(a) for a in solutions])
+        print("Boxplot. Best over all runs:\n", [min(a) for a in solutions])
     benchmark = get_benchmark(evaluation_function)
     if benchmark is not None:
-        if evaluation_function == h2 or evaluation_function == h2o or evaluation_function ==h2o_full:
+        if evaluation_function == h2 or evaluation_function == h2o or evaluation_function ==h2o_full or evaluation_function == lih:
             plt.ylabel('Energy (Ha)')
-            benchmark = round(benchmark[1], 3)
-            label = 'bench_FCI'
-        elif evaluation_function == lih:
-            plt.ylabel('Energy (Ha)')
-            benchmark = round(benchmark, 3)
-            label = 'ADAPT-VQE'
+            benchmark = [round(b, 3) for b in benchmark]
+            label = ['bench_SCF', 'bench_FCI']
+
+
         elif evaluation_function == sudoku2x2 or evaluation_function == sudoku:
             plt.ylabel('Cost')
             label = 'exact_oracle'
         else:
             plt.ylabel('Cost')
             label = 'benchmark'
-        plt.axhline(y=benchmark, color='r', linestyle='--', label=label)
+        if isinstance(benchmark, list) and len(benchmark) > 1:
+            color = ['b', 'r']
+            for i in range(len(benchmark)):
+                plt.axhline(y=benchmark[i], color=color[i], linestyle='--', label=label[i])
+        else:
+            plt.axhline(y=benchmark, color='r', linestyle='--', label=label)
 
     directory, filename = get_filename(evaluation_function=evaluation_function, criteria=criteria, branches=branches, image=True, roll_out_steps=roll_out_steps, rollout_type=rollout_type, iteration=0, epsilon=epsilon, stop_deterministic=stop_deterministic, ucb=ucb, gradient=gradient, budget=0)
-    print(filename)
+
     plt.title(evaluation_function.__name__)
     plt.xlabel('MCTS Simulations')
+
+    # plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:.3f}'))
     plt.legend()
     plt.savefig(directory+filename + '_boxplot.png')
 
@@ -307,19 +407,23 @@ def plot_gradient_descent(evaluation_function, criteria, branches, budget, roll_
                                 roll_out_steps=roll_out_steps, image=False, ucb=ucb)
         df = pd.read_pickle(directory+filename + '.pkl')
         filtered_column = df[df['Adam'].apply(lambda x: x != [None])]['Adam']
+        two_best = filtered_column.tolist()
+        if len(two_best) == 2:
+            print(two_best[0][0], two_best[0][-1], two_best[1][0], two_best[1][-1])
+        gd_values = min(two_best, key=lambda x: x[-1])
+        
 
-        gd_values = filtered_column.tolist()[0]
         plt.plot(range(len(gd_values)), gd_values, marker='o', linestyle='-', label=str(b))
-    plt.title(evaluation_function.__name__ + ' - Adam Optimizer')
+    # plt.title(evaluation_function.__name__ + ' - Adam Optimizer')
 
     benchmark_value = get_benchmark(evaluation_function)
     if evaluation_function == h2 or evaluation_function == h2o or evaluation_function == lih:
         plt.ylabel('Energy (Ha)')
 
         if isinstance(benchmark_value, list) or isinstance(benchmark_value, tuple):
-            plt.axhline(y=benchmark_value[0], color='r', linestyle='--',
+            plt.axhline(y=benchmark_value[0], color='b', linestyle='--',
                         label=f'bench_SCF({round(benchmark_value[0], 3)})')
-            plt.axhline(y=benchmark_value[1], color='g', linestyle='--',
+            plt.axhline(y=benchmark_value[1], color='r', linestyle='--',
                         label=f'bench_FCI({round(benchmark_value[1], 3)})')
 
         else:
@@ -328,16 +432,86 @@ def plot_gradient_descent(evaluation_function, criteria, branches, budget, roll_
         plt.axhline(y=benchmark_value, color='r', linestyle='--', label=f'bench({benchmark_value})')
     plt.legend()
 
-
+    plt.gca().yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:.2f}'))
     directory, filename = get_filename(evaluation_function=evaluation_function, criteria=criteria, budget=budget, iteration=0, branches=branches,
-                                        epsilon=epsilon, stop_deterministic=stop_deterministic, rollout_type=rollout_type,
-                                        roll_out_steps=roll_out_steps, image=True, ucb=ucb)
+                                       epsilon=epsilon, stop_deterministic=stop_deterministic, rollout_type=rollout_type, roll_out_steps=roll_out_steps, image=True, ucb=ucb)
     plt.savefig(directory+filename+'_gd.png')
     plt.clf()
     if verbose:
         print('Gradient descent image saved in ', directory+filename)
     return gd_values
 
+
+
+def plot_paths(evaluation_function, criteria, branches, budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter, ucb, benchmark=None, verbose=False):
+
+    plt.xlabel('Tree depth')
+    plt.ylabel('Cost')
+    max_tree_depth = 0
+    for b in budget:
+        index = get_best_overall(evaluation_function, criteria, branches, b, roll_out_steps, rollout_type, epsilon,
+                                 stop_deterministic, n_iter, ucb)[1]
+        directory, filename = get_filename(evaluation_function=evaluation_function, criteria=criteria, budget=b, iteration=index, branches=branches,
+                                epsilon=epsilon, stop_deterministic=stop_deterministic, rollout_type=rollout_type,
+                                roll_out_steps=roll_out_steps, image=False, ucb=ucb)
+        df = pd.read_pickle(directory+filename + '.pkl')
+        cost = df['cost']
+        tree_depth = len(cost)
+        if tree_depth > max_tree_depth:
+            max_tree_depth = tree_depth
+        plt.plot(list(range(len(cost))), cost, marker='o', linestyle='-', label=str(b))
+    # Set x-ticks
+    indices = list(range(max_tree_depth + 2))
+    if max_tree_depth > 20:
+        indices = indices[::2]
+    plt.xticks(indices)
+
+    benchmark_value = get_benchmark(evaluation_function)
+    if evaluation_function == h2 or evaluation_function == h2o or evaluation_function == lih:
+        plt.ylabel('Energy (Ha)')
+
+        if isinstance(benchmark_value, list) or isinstance(benchmark_value, tuple):
+            plt.axhline(y=benchmark_value[0], color='b', linestyle='--',
+                        label=f'bench_SCF({round(benchmark_value[0], 3)})')
+            plt.axhline(y=benchmark_value[1], color='r', linestyle='--',
+                        label=f'bench_FCI({round(benchmark_value[1], 3)})')
+
+        else:
+            plt.axhline(y=benchmark_value, color='r', linestyle='--', label=f'ADAPT-VQE({round(benchmark_value, 3)})')
+    else:
+        plt.axhline(y=benchmark_value, color='r', linestyle='--', label=f'bench({benchmark_value})')
+    directory, filename = get_filename(evaluation_function=evaluation_function, criteria=criteria, branches=branches, image=True, roll_out_steps=roll_out_steps, rollout_type=rollout_type, iteration=0, budget=budget, epsilon=epsilon, stop_deterministic=stop_deterministic, ucb=ucb)
+
+    plt.legend(loc='best')
+    # plt.title(evaluation_function.__name__ + " - Best path in the tree")
+    plt.savefig(directory+filename + '_tree_paths.png')
+    if verbose:
+        print('Plot of tree path saved in image', directory+filename)
+    plt.clf()
+
+
+
+
+def plot_circuit(evaluation_function, criteria, branches, budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter, ucb):
+    if evaluation_function ==sudoku:
+        index = best_run(evaluation_function, criteria, branches, budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter, ucb)[1]
+    else:
+        index = get_best_overall(evaluation_function, criteria, branches, budget, roll_out_steps, rollout_type, epsilon,
+                             stop_deterministic, n_iter, ucb)[1]
+    directory, filename = get_filename(evaluation_function=evaluation_function, criteria=criteria, budget=budget, iteration=index, branches=branches,
+                            epsilon=epsilon, stop_deterministic=stop_deterministic, rollout_type=rollout_type,
+                            roll_out_steps=roll_out_steps, image=False, ucb=ucb)
+    df = pd.read_pickle(directory+filename + '.pkl')
+    # Find the row with the lowest last item in the "Adam" column
+    min_row = df.loc[df["Adam"].apply(lambda x: x[-1]).idxmin()]
+    print("Problem:", evaluation_function.__name__, "\nBudget: ", budget)
+    print("Last value after fine-tuning: ", min_row["Adam"][-1])
+    print("Number of Adam steps: ", len(min_row["Adam"]))
+    # Retrieve the "qc" value
+    circuit = min_row["qc"]
+    circuit_name = "circuit_bud_"+str(budget)+"_r"+str(roll_out_steps)
+    circuit.draw(output='mpl', filename=directory+'images/'+circuit_name+'.png')
+    print("quantum circuit saved")
 
 # Utils
 def check_file_exist(evaluation_function, criteria, branches, budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, ucb,  n_iter=10, gate_set='continuous'):
@@ -370,9 +544,11 @@ def get_benchmark(evaluation_function):
         right_counts = counts_exact['1001'] + counts_exact['0110']
         return 1-(right_counts/1000)
     elif evaluation_function == lih:
-        return -7.972
+        sol_scf = -7.9526
+        sol_fci = -7.9726
+        return sol_scf, sol_fci
     elif evaluation_function == h2o or evaluation_function == h2o_full:
-        return -75.16, -75.49
+        return -75.1645, -75.4917
     else:
         return .0
 
@@ -386,7 +562,7 @@ def colorplot_oracle(criteria, qubits, gates, accuracy, simulations, steps, ucb)
             count = 0
             for run in range(10):
 
-                df = pd.read_pickle('experiments/n-grams/'+criteria+ucb_+'/fidelity_'+str(qubits)+'_'+str(gates[i])+magic[j]+'/continuous/rollout_classic/pw_budget_'+str(simulations)+'_rsteps_'+str(steps)+'_run_'+str(run)+'.pkl')
+                df = pd.read_pickle('experiments/'+criteria+ucb_+'/fidelity_'+str(qubits)+'_'+str(gates[i])+magic[j]+'/continuous/rollout_classic/pw_budget_'+str(simulations)+'_rsteps_'+str(steps)+'_run_'+str(run)+'.pkl')
                 cost = df['cost'].tolist()
                 if isinstance(cost[0], list):
                     best = min(cost)[0]
@@ -406,7 +582,7 @@ def colorplot_oracle(criteria, qubits, gates, accuracy, simulations, steps, ucb)
     plt.xticks(range(len(gates)), gates)
     plt.yticks([0, 1], ['easy', 'hard'])
     plt.grid(False)
-    plt.savefig('experiments/n-grams/'+criteria+ucb_+'/colormap_'+str(qubits)+'_'+str(steps)+'_acc'+str(accuracy)+'.png')
+    plt.savefig('experiments/'+criteria+ucb_+'/colormap_'+str(qubits)+'_'+str(steps)+'_acc'+str(accuracy)+'.png')
     print('Image saved')
 
 
@@ -414,13 +590,14 @@ def oracle_interpolation(qubit, epsilon, steps):
 
     # Sample data
     gates = [5, 10, 15, 20, 30]
-    if qubit == 8:
-        gates = [5, 10, 15, 20]
-    simulations = [1000, 2000, 5000, 10000, 50000, 100000, 200000]
-    if qubit ==4:
-        simulations = [1000, 2000, 5000, 10000, 50000, 100000]
+    """if qubit == 8:
+        gates = [5, 10, 15, 20]"""
+    simulations = [1000, 5000, 10000, 50000, 100000]
 
 
+    criteria = "value"
+    ucb = 0.4
+    ucb_ = '/' + 'ucb' + str(ucb)
     magic = ('_easy', '_hard')
     data = []
     for m in range(len(magic)):
@@ -429,10 +606,8 @@ def oracle_interpolation(qubit, epsilon, steps):
             prova = []
             for s in simulations:
                 count = 0
-
                 for run in range(10):
-                    df = pd.read_pickle('experiments/fidelity_' + str(qubit) + '_' + str(gates[g]) + magic[m] + '/continuous/rollout_classic/pw_budget_' + str(s) + '_rsteps_'+str(steps)+'_run_' + str(
-                        run) + '.pkl')
+                    df = pd.read_pickle('experiments/'+criteria+ucb_+'/fidelity_'+str(qubit)+'_'+str(gates[g])+magic[m]+'/continuous/rollout_classic/pw_budget_'+str(s)+'_rsteps_'+str(steps)+'_run_'+str(run)+'.pkl')
 
                     cost = df['cost'].tolist()
                     if isinstance(cost[0], list):
@@ -450,8 +625,6 @@ def oracle_interpolation(qubit, epsilon, steps):
         # Plotting the first scatter plot
         plt.scatter(simulations, data[0][i], label=str(gates[i])+' gates')
         plt.plot(simulations, data[0][i], linestyle='-', linewidth=1, alpha=0.7)
-        print(i)
-        print(data[0][i])
 
     plt.title('Easy')
     plt.ylabel('Successful Approximations')
@@ -475,7 +648,3 @@ def oracle_interpolation(qubit, epsilon, steps):
     plt.legend()
     plt.savefig('experiments/simulation_plot_'+str(qubit)+'_'+str(steps)+'.png')
 
-
-
-def grid_search(hyperparameters):
-    print('Grid Search Completed')

@@ -42,26 +42,21 @@ class VQLS:
             qml.CNOT(wires=[self.ancilla_idx, 0])
             if len(self.c) == 3:
                 qml.CZ(wires=[self.ancilla_idx, 1])
-
         elif idx == 2:
             # X_1
             if len(self.c) == 4:
                 qml.CNOT(wires=[self.ancilla_idx, 1])
             elif len(self.c) == 3:
                 qml.CNOT(wires=[self.ancilla_idx, 0])
-
-
         elif idx == 3:
-            if len(self.c) == 4:
-                # Z_2 Z_3
-                qml.CZ(wires=[self.ancilla_idx, 2])
-                qml.CZ(wires=[self.ancilla_idx, 3])
-            else:
-                pass
+            # Z_2 Z_3
+            qml.CZ(wires=[self.ancilla_idx, 2])
+            qml.CZ(wires=[self.ancilla_idx, 3])
+
 
     def variational_block(self, params, quantum_circuit, ansatz):
         """Variational circuit mapping the ground state |0> to the ansatz state |x>."""
-        if quantum_circuit is None:
+        """if quantum_circuit is None:
             # We first prepare an equal superposition of all the states of the computational basis.
             for idx in range(self.n_qubits):
                 qml.Hadamard(wires=idx)
@@ -71,43 +66,38 @@ class VQLS:
                 qml.RY(element, wires=idx)
             qml.CNOT(wires=[1, 0])
             qml.CNOT(wires=[2, 3])
-
-        else:
-
-            def circuit(parameters):
-                parameters = parameters
-                i = 0
-                for instr, qubits, clbits in quantum_circuit.data:
-                    name = instr.name.lower()
-
-                    if name == "rx":
-                        if ansatz == 'all':
-                            qml.RX(instr.params[0], wires=qubits[0].index)
-                        else:
-                            qml.RX(parameters[i], wires=qubits[0].index)
-                            i += 1
-                    elif name == "ry":
-                        if ansatz == 'all':
-                            qml.RY(instr.params[0], wires=qubits[0].index)
-                        else:
-                            qml.RY(parameters[i], wires=qubits[0].index)
-                            i += 1
-                    elif name == "rz":
-                        if ansatz == 'all':
-                            qml.RZ(parameters[i], wires=qubits[0].index)
-                        else:
-                            qml.RZ(parameters[i], wires=qubits[0].index)
-                            i += 1
-                    elif name == "h":
-                        qml.Hadamard(wires=qubits[0].index)
-                    elif name == "cx":
-                        qml.CNOT(wires=[qubits[0].index, qubits[1].index])
-                return qml
-
-            return circuit(parameters=params)
+            else:"""
+        
+        i = 0
+        for instr, qubits, clbits in quantum_circuit.data:
+            name = instr.name.lower()
+            if name == "rx":
+                if ansatz == 'all':
+                    qml.RX(instr.params[0], wires=qubits[0].index)
+                else:
+                    qml.RX(params[i], wires=qubits[0].index)
+                    i += 1
+            elif name == "ry":
+                if ansatz == 'all':
+                    qml.RY(instr.params[0], wires=qubits[0].index)
+                else:
+                    qml.RY(params[i], wires=qubits[0].index)
+                    i += 1
+            elif name == "rz":
+                if ansatz == 'all':
+                    qml.RZ(instr.params[0], wires=qubits[0].index)
+                else:
+                    qml.RZ(params[i], wires=qubits[0].index)
+                    i += 1
+            elif name == "h":
+                qml.Hadamard(wires=qubits[0].index)
+            elif name == "cx":
+                qml.CNOT(wires=[qubits[0].index, qubits[1].index])
+        
+            
 
     def constructCirc(self, quantum_circuit, ansatz):
-        @qml.qnode(self.dev_mu, interface="autograd")
+        @qml.qnode(self.dev_mu, diff_method="parameter-shift")
         def local_hadamard_test(params, l=None, lp=None, j=None, part=None):
             # First Hadamard gate applied to the ancillary qubit.
             qml.Hadamard(wires=self.ancilla_idx)
@@ -184,14 +174,15 @@ class VQLS:
         opt = qml.AdamOptimizer()
         parameters = get_parameters(quantum_circuit)
         theta = np.array(parameters, requires_grad=True)
-
+        # print("Initial circuit:", quantum_circuit)
+        # print("Initial parameters:", parameters)
         # store the values of the cost function
-
-        def prova(params):
-            return self.costFunc(params=params, quantum_circuit=quantum_circuit, ansatz='')
+        def prova(parameters):
+            return self.costFunc(params=parameters, quantum_circuit=quantum_circuit, ansatz='')
 
         cost = [prova(theta)]
-
+        # print(cost)
+    
         # store the values of the circuit parameter
         angle = [theta]
 
@@ -199,14 +190,16 @@ class VQLS:
         conv_tol = 1e-08  # default -06
 
         for n in range(max_iterations):
+            # print("iteration: ", n, "Param: ", theta)
             theta, prev_energy = opt.step_and_cost(prova, theta)
             cost.append(prova(theta))
             angle.append(theta)
 
             conv = np.abs(cost[-1] - prev_energy)
 
-            """if n % 2 == 0:
-                print(f"Step = {n},  Cost = {cost[-1]:.8f}")"""
+            if n % 10 == 0:
+                print(f"Step = {n},  Cost = {cost[-1]:.8f}")
+                # print("Parameters: ", theta)
 
             if conv <= conv_tol:
                 print('Landscape is flat')
@@ -269,6 +262,7 @@ def get_parameters(quantum_circuit):
         if len(instr.params) > 0:
             parameters.append(instr.params[0])
     return parameters
+
 
 
 # SYSTEMS OF LINEAR EQUATIONS
