@@ -1,4 +1,4 @@
-This is the Github repository hosting code and experiments of the article: "Quantum Circuit Design through Monte Carlo Tree Search".
+This is the Github repository hosting code and experiments of the article: "Quantum Circuit Design using Progressive Widening Enhanced Monte Carlo Tree Search".
 
 # Environment setup
 All the scripts are written in python. In order to run these scripts follow the steps below:
@@ -11,14 +11,8 @@ All the scripts are written in python. In order to run these scripts follow the 
 In the Jupyter Notebook file "tutorial.ipynb" you can find a guided tutorial into the main functionality of the repository.
 
 # Monte Carlo Tree Search for Quantum Circuit Design
-In this project we have further investigated the role of Monte Carlo Tree Search within the domain of quantum architecture search.
-We have carried out experiments for finding the ground state energy in quantum chemistry problems (VQE),
-for solving systems of linear equations (VQLS), for the general problem of oracle approximation.
-
-## All-in-one MCTS
-Despite the previous work we used MCTS to find both the topology the parametrized quantum circuits 
-and their parameters. Then we provided MCTS of a progressive widening technique in order to deal with the continuous action space.
-
+The performance of Variational Quantum Algorithms (VQAs) strongly depends on the choice of the parameterized quantum circuit to optimize. One of the biggest challenges in VQAs is designing quantum circuits tailored to the particular problem and to the quantum hardware. 
+This article proposes a gradient-free Monte Carlo Tree Search (MCTS) technique to automate the process of quantum circuit design. It introduces a novel formulation of the action space based on a sampling scheme and a progressive widening technique to explore the space dynamically. When testing our MCTS approach on the domain of random quantum circuits, MCTS approximates unstructured circuits under different values of stabilizer R\'enyi entropy. It turns out that MCTS manages to approximate the benchmark quantum states independently from their degree of nonstabilizerness. Next, our technique exhibits robustness across various application domains, including quantum chemistry and systems of linear equations. Compared to previous MCTS research, our technique reduces the number of quantum circuit evaluations by a factor of 10 to 100 while achieving equal or better results. In addition, the resulting quantum circuits have up to three times fewer CNOT gates.
 
 # Guide into the repository
 
