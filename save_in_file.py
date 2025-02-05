@@ -34,7 +34,7 @@ def get_filename(evaluation_function, criteria, budget, branches, iteration, eps
         filename = f"{branch}{eps}_budget_{budget}{ros}_run_{iteration}{grad}{stop}"
 
     ucb_dir = f'ucb{ucb}/'
-    directory = os.path.join('experiments', criteria, ucb_dir, evaluation_function.__name__, gate_set, ro)
+    directory = os.path.join('experiments/article', criteria, ucb_dir, evaluation_function.__name__, gate_set, ro)
     return directory, filename
 
 
