@@ -4,7 +4,7 @@ This repository contains the code and experiments for the article:
 **"Quantum Circuit Design using Progressive Widening Enhanced Monte Carlo Tree Search"**  
 
 ## 📖 Paper  
-[🔗 Link to the paper](#)  
+[🔗 Link to the paper](https://arxiv.org/abs/2502.03962)  
 
 ## 🚀 Environment Setup  
 
