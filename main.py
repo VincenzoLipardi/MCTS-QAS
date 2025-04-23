@@ -11,12 +11,12 @@ EPS = None
 STOP = False
 MAX_DEPTH = 20
 CRITERIA = ['value']
-N_QUBITS = {'h2': 4, 'lih': 10, 'h2o': 8, 'vqls_1': 4, 'sudoku': 5, 'sudoku2x2': 5, 'h2o_full': 8, "maxcut":7}
+N_QUBITS = {'h2': 4, 'lih': 10, 'h2o': 8, 'vqls_1': 4, 'sudoku': 5, 'sudoku2x2': 5, 'h2o_full': 8, "maxcut":7, "h2o_noise_01": 8, "h2o_noise_1": 8, "h2o_noise_2": 8, "h2_noise_01": 4, "h2_noise_1": 4, "h2_noise_2": 4, "h2_noise_depolarizing": 4, "h2_noise_mixed": 4}
 ROLL = [0]
 SIM = False
 GATES = [5, 10, 15, 20, 30]
 ITERATIONS = list(range(10))
-BUDGET = [1000, 5000]#, 10000, 100000]
+BUDGET = [1000, 10000, 100000]
 
 
 plot_oracle = False
@@ -24,13 +24,11 @@ process_pool = True
 
 
 apply_gradient_descent = True
-PLOT = [False, False, False, True, False, True, True]
+PLOT = [False, False, False, True, True, True, True]
 start = "plot"
 
 
-
-functions = [evf.h2, evf.h2o, evf.lih]
-
+functions = [evf.h2_noise_depolarizing, evf.h2_noise_mixed]
 
 def run(function, budget, rollout_steps, iter, ucb, criteria, branches):
     if function.__name__[0] == 'f':
@@ -77,7 +75,7 @@ def plot(function, roll_out_steps, criteria, ucb, branches):
                                   stop_deterministic=STOP, ucb=ucb, verbose=False)
             
         if PLOT[4]:
-            sif.plot_best_results(evaluation_functions=functions, criteria=criteria, branches=BRANCHES, fixed_budget=BUDGET[1],
+            sif.plot_branch_results(evaluation_functions=functions, criteria=criteria, branches=BRANCHES, fixed_budget=BUDGET[1],
                                   roll_out_steps=roll_out_steps, rollout_type=ROTYPE, n_iter=N_ITER, epsilon=EPS,
                                   stop_deterministic=STOP, gradient=True, ucb=ucb, verbose=False)
         if PLOT[5]:
@@ -126,9 +124,7 @@ if plot_oracle:
     for s in ROLL:
         for u in UCB:
             for c in CRITERIA:
-                for a in [0.01, 0.05, 0.1, 0.2]:
-                    for q in [8]:
-                        sif.colorplot_oracle(criteria=c, qubits=q, gates=GATES, accuracy=a, simulations=100000, steps=s, ucb=u)
-
-
-
+                """for a in [0.1]:
+                    for q in [6]:"""
+                        #sif.colorplot_oracle(criteria=c, qubits=q, gates=GATES, accuracy=a, simulations=100000, steps=s, ucb=u)
+                sif.plot_fidelity_noise(criteria=c, qubits_accuracy_dict={4:0.05, 6:0.1}, noise=[0.1, 0.2], simulations=100000, steps=s, ucb=u)

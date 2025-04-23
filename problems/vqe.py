@@ -5,19 +5,28 @@ from pennylane import numpy as np
 
 
 class H2O:
-    def __init__(self, sparse=True):
+    def __init__(self, sparse=True, noise=False):
         # Atoms
-
+        self.noise = noise
         self.geometry = np.array([0., 0., 0., 1.63234543, 0.86417176, 0., 3.36087791, 0., 0.]) * 1.88973  # Angstrom to Bohr
         self.symbols = ['H', 'O', 'H']
         self.wires = list(range(0, 8))
-        self.dev = qml.device('default.qubit', wires=8)
+        
+        # Initialize device with noise if specified
+        if noise:
+            # Create noisy device with bitflip error
+            self.dev = qml.device('default.mixed', wires=8)
+            self.sparse = False  # Cannot use sparse with mixed device
+        else:
+            # Create noiseless device
+            self.dev = qml.device('default.qubit', wires=8)
+            self.sparse = sparse
+            
         self.active_electrons = 4
-        self.sparse = sparse
         # Hamiltonian of the molecule represented
         # Number of qubits needed to perform the quantum simulation
         self.hamiltonian, self.qubits = qml.qchem.molecular_hamiltonian(self.symbols, self.geometry, charge=0, mult=1, basis="sto-6g", active_electrons=4, active_orbitals=4, load_data=True)
-        if sparse:
+        if self.sparse:
             self.hamiltonian = self.hamiltonian.sparse_matrix()
         self.hf = qml.qchem.hf_state(self.active_electrons, self.qubits)
 
@@ -27,7 +36,7 @@ class H2O:
         """
 
         def circuit_input(parameters):
-            qml.BasisState(self.hf, wires=self.wires)
+            # qml.BasisState(self.hf, wires=self.wires)
 
             i = 0
             for instr, qubits, clbits in quantum_circuit.data:
@@ -54,16 +63,21 @@ class H2O:
                     qml.Hadamard(wires=qubits[0].index)
                 elif name == "cx":
                     qml.CNOT(wires=[qubits[0].index, qubits[1].index])
-
+                
+            # Apply bitflip noise after each gate if noise is enabled
+            if self.noise:
+                for wire in self.wires:
+                    qml.BitFlip(p=self.noise, wires=wire)
 
         @qml.qnode(self.dev, diff_method="parameter-shift")
         def cost_fn(parameters):
             circuit_input(parameters)
+            if self.noise:
+                return qml.expval(self.hamiltonian)
             if self.sparse:
                 return qml.expval(qml.SparseHamiltonian(self.hamiltonian, wires=self.wires))
             else:
                 return qml.expval(self.hamiltonian)
-
 
         return cost_fn(parameters=params)
 
@@ -131,7 +145,7 @@ class LiH:
         """
 
         def circuit_input(parameters):
-            qml.BasisState(self.hf, wires=self.wires)
+            # qml.BasisState(self.hf, wires=self.wires)
 
             i = 0
             for instr, qubits, clbits in quantum_circuit.data:
@@ -206,11 +220,20 @@ class LiH:
 
 class H2:
     # https://pennylane.ai/qml/demos/tutorial_vqe/
-    def __init__(self, name='', geometry=None):
+    def __init__(self, name='', geometry=None, noise_type=['bitflip'], noise=False):
         # Atoms
         self.symbols = ["H", "H"]
         self.wires = [0, 1, 2, 3]
-        self.dev = qml.device('default.qubit', wires=4)
+        self.noise = noise
+        # Convert string to list if single noise type provided
+        self.noise_type = [noise_type] if isinstance(noise_type, str) else noise_type
+        # Initialize device with noise if specified
+        if noise:
+            # Create noisy device with bitflip error
+            self.dev = qml.device('default.mixed', wires=4)
+        else:
+            # Create noiseless device
+            self.dev = qml.device('default.qubit', wires=4)
 
         # Position of the Hydrogen atoms
         if geometry is None:
@@ -236,9 +259,6 @@ class H2:
         """
         def circuit(parameters):
             # Standard Ansatz for h2 molecule (Hatree-Fock state when parameter =0)
-
-            # assert len(parameters) == 1
-
             qml.BasisState(self.hf, wires=self.wires)
             qml.DoubleExcitation(parameters, wires=self.wires)
 
@@ -270,7 +290,15 @@ class H2:
                     qml.Hadamard(wires=qubits[0].index)
                 elif name == "cx":
                     qml.CNOT(wires=[qubits[0].index, qubits[1].index])
-
+                
+                # Apply noise after each gate if noise is enabled
+                if self.noise:
+                    for wire in self.wires:
+                        for noise in self.noise_type:
+                            if noise == "depolarizing":
+                                qml.DepolarizingChannel(p=self.noise, wires=wire)
+                            if noise == "bitflip":
+                                qml.BitFlip(p=self.noise, wires=wire)
 
         @qml.qnode(self.dev, diff_method="parameter-shift")
         def cost_fn(parameters):
@@ -318,12 +346,12 @@ class H2:
         opt = qml.AdamOptimizer()
         parameters = get_parameters(quantum_circuit)
         theta = np.array(parameters, requires_grad=True)
-        # store the values of the cost function
 
+        # store the values of the cost function
         def prova(params):
             return self.costFunc(params=params, quantum_circuit=quantum_circuit, ansatz='')
+        
         energy = [prova(theta)]
-
 
         # store the values of the circuit parameter
         angle = [theta]
@@ -364,5 +392,14 @@ def get_parameters(quantum_circuit):
 # QUANTUM CHEMISTRY MODELS
 lih_class = LiH()
 h2o_class = H2O()
-h2_class = H2()
-h2o_full_class = H2O(sparse=False)
+h2o_class_noise_01 = H2O(noise=0.01)
+h2o_class_noise_1 = H2O(noise=0.1)
+h2o_class_noise_2 = H2O(noise=0.2)
+h2_class = H2() # no noise
+h2_class_noise_01 = H2(noise_type="bitflip", noise=0.01) 
+h2_class_noise_1 = H2(noise_type="bitflip", noise=0.1) 
+h2_class_noise_2 = H2(noise_type="bitflip", noise=0.2) 
+h2_class_noise_depolarizing = H2(noise_type="depolarizing", noise=0.0145) 
+h2_class_noise_mixed = H2(noise_type=["bitflip", "depolarizing"], noise=0.01) 
+h2o_full_class = H2O(sparse=False) # no noise
+

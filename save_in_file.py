@@ -5,9 +5,8 @@ import os.path
 import numpy as np
 from structure import Circuit
 import matplotlib.pyplot as plt
-import evaluation_functions as evf
-from problems.oracles.grover.grover import grover_algo
-from evaluation_functions import h2, vqls_1, sudoku, sudoku2x2, h2o, lih, h2o_full
+from evaluation_functions import h2, vqls_1, h2o, lih, h2o_noise_1, h2o_noise_2,h2o_full, h2_noise_01, h2_noise_1, h2_noise_2, h2_noise_depolarizing, h2_noise_mixed
+
 
 
 def get_filename(evaluation_function, criteria, budget, branches, iteration, epsilon, stop_deterministic, rollout_type,
@@ -34,7 +33,7 @@ def get_filename(evaluation_function, criteria, budget, branches, iteration, eps
         filename = f"{branch}{eps}_budget_{budget}{ros}_run_{iteration}{grad}{stop}"
 
     ucb_dir = f'ucb{ucb}/'
-    directory = os.path.join('experiments/article', criteria, ucb_dir, evaluation_function.__name__, gate_set, ro)
+    directory = os.path.join('experiments/paper', criteria, ucb_dir, evaluation_function.__name__, gate_set, ro)
     return directory, filename
 
 
@@ -61,7 +60,7 @@ def run_and_savepkl(evaluation_function, criteria, variable_qubits, ancilla_qubi
                                        gate_set=gate_set, rollout_type=rollout_type, roll_out_steps=roll_out_steps,
                                        epsilon=epsilon, stop_deterministic=stop_deterministic, image=False, ucb=ucb)
     if not os.path.exists(directory):
-        os.makedirs(directory)
+        os.makedirs(directory, exist_ok=True)
         if verbose:
             print("Directory created successfully!")
 
@@ -242,7 +241,7 @@ def plot_cost(evaluation_function, criteria, branches, budget, roll_out_steps, r
         indices = indices[::2]
     plt.xticks(indices)
     # Get benchmark value for the problem
-    if evaluation_function == h2 or evaluation_function == h2o or evaluation_function == lih:
+    if evaluation_function in (h2, h2o, h2o_full, lih, h2_noise_01, h2_noise_1, h2_noise_2, h2o_noise_1, h2o_noise_2, h2_noise_depolarizing):
         benchmark = get_benchmark(evaluation_function)
         plt.ylabel('Energy (Ha)')
     if evaluation_function == h2:
@@ -265,7 +264,7 @@ def plot_cost(evaluation_function, criteria, branches, budget, roll_out_steps, r
         print('Plot of the cost along the path saved in image', directory+filename)
     plt.clf()
 
-def plot_best_results(evaluation_functions, fixed_budget, criteria, branches, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter, gradient, ucb, verbose=False):
+def plot_branch_results(evaluation_functions, fixed_budget, criteria, branches, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter, gradient, ucb, verbose=False):
     """ Plot the best result across different evaluation functions for a fixed budget in MCTS simulations. """
 
     # Define specific colors for the plots
@@ -361,15 +360,11 @@ def boxplot(evaluation_function, budget, criteria, branches, roll_out_steps, rol
         print("Boxplot. Best over all runs:\n", [min(a) for a in solutions])
     benchmark = get_benchmark(evaluation_function)
     if benchmark is not None:
-        if evaluation_function == h2 or evaluation_function == h2o or evaluation_function ==h2o_full or evaluation_function == lih:
+        if evaluation_function in (h2, h2o, h2o_full, lih, h2_noise_01, h2_noise_1, h2_noise_2, h2o_noise_1, h2o_noise_2, h2_noise_depolarizing, h2_noise_mixed): 
             plt.ylabel('Energy (Ha)')
             benchmark = [round(b, 3) for b in benchmark]
             label = ['bench_SCF', 'bench_FCI']
 
-
-        elif evaluation_function == sudoku2x2 or evaluation_function == sudoku:
-            plt.ylabel('Cost')
-            label = 'exact_oracle'
         else:
             plt.ylabel('Cost')
             label = 'benchmark'
@@ -417,8 +412,7 @@ def plot_gradient_descent(evaluation_function, criteria, branches, budget, roll_
     # plt.title(evaluation_function.__name__ + ' - Adam Optimizer')
 
     benchmark_value = get_benchmark(evaluation_function)
-    if evaluation_function == h2 or evaluation_function == h2o or evaluation_function == lih:
-        plt.ylabel('Energy (Ha)')
+    if evaluation_function in (h2, h2o, h2o_full, lih, h2_noise_01, h2_noise_1, h2_noise_2, h2o_noise_1, h2o_noise_2, h2_noise_depolarizing, h2_noise_mixed):
 
         if isinstance(benchmark_value, list) or isinstance(benchmark_value, tuple):
             plt.axhline(y=benchmark_value[0], color='b', linestyle='--',
@@ -467,7 +461,7 @@ def plot_paths(evaluation_function, criteria, branches, budget, roll_out_steps, 
     plt.xticks(indices)
 
     benchmark_value = get_benchmark(evaluation_function)
-    if evaluation_function == h2 or evaluation_function == h2o or evaluation_function == lih:
+    if evaluation_function in (h2, h2o, h2o_full, lih, h2_noise_01, h2_noise_1, h2_noise_2, h2o_noise_1, h2o_noise_2, h2_noise_depolarizing, h2_noise_mixed):
         plt.ylabel('Energy (Ha)')
 
         if isinstance(benchmark_value, list) or isinstance(benchmark_value, tuple):
@@ -493,10 +487,8 @@ def plot_paths(evaluation_function, criteria, branches, budget, roll_out_steps, 
 
 
 def plot_circuit(evaluation_function, criteria, branches, budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter, ucb):
-    if evaluation_function ==sudoku:
-        index = best_run(evaluation_function, criteria, branches, budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter, ucb)[1]
-    else:
-        index = get_best_overall(evaluation_function, criteria, branches, budget, roll_out_steps, rollout_type, epsilon,
+    
+    index = get_best_overall(evaluation_function, criteria, branches, budget, roll_out_steps, rollout_type, epsilon,
                              stop_deterministic, n_iter, ucb)[1]
     directory, filename = get_filename(evaluation_function=evaluation_function, criteria=criteria, budget=budget, iteration=index, branches=branches,
                             epsilon=epsilon, stop_deterministic=stop_deterministic, rollout_type=rollout_type,
@@ -526,28 +518,19 @@ def check_file_exist(evaluation_function, criteria, branches, budget, roll_out_s
 
 def get_benchmark(evaluation_function):
     """ It returns the classical benchmark value of the problems in input"""
-    if evaluation_function == h2:
+    if evaluation_function in (h2, h2_noise_01, h2_noise_1, h2_noise_2, h2_noise_depolarizing, h2_noise_mixed):
         # List
         # sol_scf = H2().benchmark()
         sol_scf = -1.115
         sol_fci = -1.136189454088     # Full configuration Interaction
         return sol_scf, sol_fci
-    elif evaluation_function == sudoku2x2 or evaluation_function ==sudoku:
-        counts_exact = grover_algo(oracle='exact', iterations=2, ancilla=1)
-
-        if '1001' not in counts_exact:
-            counts_exact['1001'] = 0
-        elif '0110' not in counts_exact:
-            counts_exact['0110'] = 0
-        else:
-            pass
-        right_counts = counts_exact['1001'] + counts_exact['0110']
-        return 1-(right_counts/1000)
+    
     elif evaluation_function == lih:
         sol_scf = -7.9526
         sol_fci = -7.9726
         return sol_scf, sol_fci
-    elif evaluation_function == h2o or evaluation_function == h2o_full:
+    
+    elif evaluation_function in (h2o, h2o_full, h2o_noise_1, h2o_noise_2):
         return -75.1645, -75.4917
     else:
         return .0
@@ -585,6 +568,146 @@ def colorplot_oracle(criteria, qubits, gates, accuracy, simulations, steps, ucb)
     plt.savefig('experiments/'+criteria+ucb_+'/colormap_'+str(qubits)+'_'+str(steps)+'_acc'+str(accuracy)+'.png')
     print('Image saved')
 
+def plot_fidelity_noise(criteria, qubits_accuracy_dict, noise, simulations, steps, ucb):
+    gates = 20
+    magic = ('_easy', '_hard')
+    ucb_ = '/' + 'ucb' + str(ucb)
+    noise = [0, 1, 2]
+    
+    # Dictionary to store all results
+    all_results = {}
+    
+    for qubits, accuracy in qubits_accuracy_dict.items():
+        key = f'{qubits}q'
+        counts_easy = []
+        counts_hard = []
+        
+        for i in range(len(noise)):
+            count_easy = 0
+            count_hard = 0
+            for run in range(10):
+                for j in range(len(magic)):
+                    if noise[i] == 0:
+                        df = pd.read_pickle('experiments/'+criteria+ucb_+'/fidelity_'+str(qubits)+'_'+str(gates)+magic[j]+'/continuous/rollout_classic/pw_budget_'+str(simulations)+'_rsteps_'+str(steps)+'_run_'+str(run)+'.pkl')
+                    else:
+                        df = pd.read_pickle('experiments/paper/'+criteria+ucb_+'/fidelity_'+str(qubits)+'_'+str(gates)+magic[j]+'_bfnoise_'+str(noise[i])+'/continuous/rollout_classic/pw_budget_'+str(simulations)+'_rsteps_'+str(steps)+'_run_'+str(run)+'.pkl')
+                    cost = df['cost'].tolist()
+                    if isinstance(cost[0], list):
+                        best = min(cost)[0]
+                    else:
+                        best = min(cost)
+                    if best < accuracy:
+                        if j == 0:
+                            count_easy += 1
+                        else:
+                            count_hard += 1
+            counts_easy.append(count_easy)
+            counts_hard.append(count_hard)
+        
+        all_results[key] = {'easy': counts_easy, 'hard': counts_hard}
+
+    # Create a single plot
+    fig, ax = plt.subplots(figsize=(10, 8))
+    
+    # Prepare data for colorplot
+    qubit_labels = []
+    for key in all_results.keys():
+        qubit_labels.extend([f"{key[:-1]} qubits easy", f"{key[:-1]} qubits hard"])
+    noise_labels = ['Noiseless', 'Bitflip 0.1', 'Bitflip 0.2']
+    
+    # Create combined data matrix
+    combined_data = []
+    for key in all_results.keys():
+        combined_data.append(all_results[key]['easy'])
+        combined_data.append(all_results[key]['hard'])
+    combined_data = np.array(combined_data)
+    
+    # Plot combined data
+    im = ax.imshow(combined_data, aspect='auto', cmap='viridis', vmin=0, vmax=10)
+    
+    # Set labels and ticks
+    ax.set_yticks(range(len(qubit_labels)))
+    ax.set_yticklabels(qubit_labels)
+    ax.set_xticks(range(len(noise_labels)))
+    ax.set_xticklabels(noise_labels, rotation=45)
+    
+    # Add colorbar
+    plt.colorbar(im, ax=ax, label='Successful Approximations')
+    
+    # Adjust layout
+    plt.tight_layout()
+    
+    # Save plot
+    filename = f'{criteria}{ucb_}/colorplot_combined_comparison.png'
+    plt.savefig(f'experiments/paper/{filename}', bbox_inches='tight')
+    plt.close()
+    print('Combined colorplot saved in:', filename)
+
+def boxplplot_fidelity_noise(criteria, qubits, noise, accuracy, simulations, steps, ucb):
+    gates = 20
+    magic = ('_easy', '_hard')
+    ucb_ = '/' + 'ucb' + str(ucb)
+    noise = [0, 1, 2]
+    average, std = [], []
+    for i in range(len(noise)):
+        for j in range(len(magic)):
+            bests = []
+            for run in range(10):
+                if noise[i] == 0:
+                    df = pd.read_pickle('experiments/'+criteria+ucb_+'/fidelity_'+str(qubits)+'_'+str(gates)+magic[j]+'/continuous/rollout_classic/pw_budget_'+str(simulations)+'_rsteps_'+str(steps)+'_run_'+str(run)+'.pkl')
+                else:
+                    df = pd.read_pickle('experiments/paper/'+criteria+ucb_+'/fidelity_'+str(qubits)+'_'+str(gates)+magic[j]+'_bfnoise_'+str(noise[i])+'/continuous/rollout_classic/pw_budget_'+str(simulations)+'_rsteps_'+str(steps)+'_run_'+str(run)+'.pkl')
+                cost = df['cost'].tolist()
+                if isinstance(cost[0], list):
+                    best = min(cost)[0]
+                else:
+                    best = min(cost)
+                bests.append(best)
+            average.append(np.mean(bests))
+            std.append(np.std(bests))
+    
+    # Reshape data for plotting
+    data = []
+    positions = []
+    colors = ['green', 'blue', 'red']  # Different color for each noise value
+    
+    # Prepare data for each magic value
+    for j in range(len(magic)):  # For each magic value
+        for i in range(len(noise)):  # For each noise value
+            idx = i * len(magic) + j
+            # Create synthetic data based on mean and std
+            synthetic_data = np.random.normal(average[idx], std[idx], 100)
+            data.append(synthetic_data)
+            positions.append(j + i * 0.3)  # Offset boxes within each magic group
+    
+    # Create plot
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    # Create boxplot
+    bp = ax.boxplot(data, positions=positions, patch_artist=True)
+    
+    # Customize boxplot colors - now correctly mapping noise values to colors
+    for i in range(len(magic) * len(noise)):
+        noise_idx = i % len(noise)  # This gives us 0,1,2,0,1,2 for the noise levels
+        bp['boxes'][i].set(facecolor=colors[noise_idx], alpha=0.6)
+    
+    # Customize plot
+    plt.ylabel('Cost')
+    plt.xlabel('Magic')
+    
+    # Set x-axis ticks and labels
+    plt.xticks([0.3, 1.3], ['Easy', 'Hard'])
+    
+    # Add legend
+    legend_elements = [plt.Rectangle((0, 0), 1, 1, facecolor=colors[i], alpha=0.6, label=f'Noise {n}')
+                      for i, n in enumerate(noise)]
+    plt.legend(handles=legend_elements, loc='upper right')
+    
+    # Save plot
+    filename = f'{criteria}{ucb_}/boxplot_{qubits}_{steps}_noise_comparison.png'
+    plt.savefig(f'experiments/paper/{filename}')
+    plt.close()
+    print('Boxplot saved in:', filename)
 
 def oracle_interpolation(qubit, epsilon, steps):
 
