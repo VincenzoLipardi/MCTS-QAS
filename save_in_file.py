@@ -5,7 +5,7 @@ import os.path
 import numpy as np
 from structure import Circuit
 import matplotlib.pyplot as plt
-from evaluation_functions import h2, vqls_1, h2o, lih, h2o_noise_1, h2o_noise_2,h2o_full, h2_noise_01, h2_noise_1, h2_noise_2, h2_noise_depolarizing, h2_noise_mixed
+from evaluation_functions import h2, vqls_1, h2o, lih, h2o_noise_1, h2o_noise_2, h2o_full, h2_noise_01, h2_noise_1, h2_noise_2, h2_noise_depolarizing, h2_noise_mixed
 
 
 
@@ -95,7 +95,6 @@ def safe_read_pickle(file_path):
         print(f"Error reading pickle file: {e}")
         # Handle the error, e.g., by returning None or a default value
         return None
-
 
 
 
@@ -375,7 +374,7 @@ def boxplot(evaluation_function, budget, criteria, branches, roll_out_steps, rol
         else:
             plt.axhline(y=benchmark, color='r', linestyle='--', label=label)
 
-    directory, filename = get_filename(evaluation_function=evaluation_function, criteria=criteria, branches=branches, image=True, roll_out_steps=roll_out_steps, rollout_type=rollout_type, iteration=0, epsilon=epsilon, stop_deterministic=stop_deterministic, ucb=ucb, gradient=gradient, budget=0)
+    directory, filename = get_filename(evaluation_function=evaluation_function, criteria=criteria, branches=branches, image=True, roll_out_steps=roll_out_steps, rollout_type=rollout_type, iteration=0, epsilon=epsilon, stop_deterministic=stop_deterministic, ucb=ucb)
 
     plt.title(evaluation_function.__name__)
     plt.xlabel('MCTS Simulations')
@@ -770,4 +769,198 @@ def oracle_interpolation(qubit, epsilon, steps):
     plt.tight_layout()
     plt.legend()
     plt.savefig('experiments/simulation_plot_'+str(qubit)+'_'+str(steps)+'.png')
+
+def plot_noise_comparison(evaluation_functions, criteria, branches, budget, roll_out_steps, rollout_type, epsilon, stop_deterministic, n_iter, ucb, verbose=False):
+    """Plot comparison of best results across different noise models."""
+    # Colors and labels for different models
+    colors = ['black', 'blue', 'red', 'green']
+    labels = ['Noiseless', 'Bit-flip', 'Depolarizing', 'Combined']
+    
+    # First plot: Optimization steps
+    plt.figure(figsize=(10, 6))
+    plt.xlabel('$T$ (Optimization Steps)')
+    plt.ylabel('Energy (Ha)')
+    
+    # Plot results for each noise model
+    for idx, evaluation_function in enumerate(evaluation_functions):
+        # Get best run for this noise model
+        best_run_idx = get_best_overall(evaluation_function, criteria, branches, budget, 
+                                      roll_out_steps, rollout_type, epsilon,
+                                      stop_deterministic, n_iter, ucb)[1]
+        
+        # Get data for best run
+        directory, filename = get_filename(evaluation_function=evaluation_function, 
+                                        criteria=criteria, budget=budget, 
+                                        iteration=best_run_idx, branches=branches,
+                                        epsilon=epsilon, stop_deterministic=stop_deterministic, 
+                                        rollout_type=rollout_type,
+                                        roll_out_steps=roll_out_steps, 
+                                        image=False, ucb=ucb)
+        
+        df = pd.read_pickle(directory + filename + '.pkl')
+        
+        # Find the row with the lowest last item in the "Adam" column
+        min_row = df.loc[df["Adam"].apply(lambda x: x[-1]).idxmin()]
+        gd_values = min_row["Adam"]
+        
+        # Plot optimization trajectory
+        plt.plot(range(len(gd_values)), gd_values, 
+                color=colors[idx], marker='o', linestyle='-', 
+                label=f'{labels[idx]} (Final: {gd_values[-1]:.3f})')
+    
+    # Add benchmark lines
+    benchmark = get_benchmark(evaluation_functions[0])  # All H2 functions share same benchmark
+    if benchmark is not None:
+        plt.axhline(y=benchmark[0], color='gray', linestyle='--',
+                    label=f'SCF ({benchmark[0]:.3f})')
+        plt.axhline(y=benchmark[1], color='black', linestyle='--',
+                    label=f'FCI ({benchmark[1]:.3f})')
+    
+    plt.legend(loc='best')
+    plt.grid(True, alpha=0.3)
+    
+    # Save optimization steps plot
+    directory = f'experiments/paper/{criteria}/ucb{ucb}/images/'
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    plt.savefig(directory + 'noise_comparison_optimization.png', bbox_inches='tight')
+    plt.close()
+    
+    # Second plot: Tree depth before optimization
+    plt.figure(figsize=(10, 6))
+    plt.xlabel('Tree Depth')
+    plt.ylabel('Energy (Ha)')
+    
+    # Plot results for each noise model
+    for idx, evaluation_function in enumerate(evaluation_functions):
+        # Get best run for this noise model
+        best_run_idx = get_best_overall(evaluation_function, criteria, branches, budget, 
+                                      roll_out_steps, rollout_type, epsilon,
+                                      stop_deterministic, n_iter, ucb)[1]
+        
+        # Get data for best run
+        directory, filename = get_filename(evaluation_function=evaluation_function, 
+                                        criteria=criteria, budget=budget, 
+                                        iteration=best_run_idx, branches=branches,
+                                        epsilon=epsilon, stop_deterministic=stop_deterministic, 
+                                        rollout_type=rollout_type,
+                                        roll_out_steps=roll_out_steps, 
+                                        image=False, ucb=ucb)
+        
+        df = pd.read_pickle(directory + filename + '.pkl')
+        cost = df['cost']
+        
+        # Plot tree depth trajectory
+        plt.plot(range(len(cost)), cost, 
+                color=colors[idx], marker='o', linestyle='-', 
+                label=f'{labels[idx]} (Final: {min(cost):.3f})')
+    
+    # Add benchmark lines
+    if benchmark is not None:
+        plt.axhline(y=benchmark[0], color='gray', linestyle='--',
+                    label=f'SCF ({benchmark[0]:.3f})')
+        plt.axhline(y=benchmark[1], color='black', linestyle='--',
+                    label=f'FCI ({benchmark[1]:.3f})')
+    
+    plt.legend(loc='best')
+    plt.grid(True, alpha=0.3)
+    
+    # Save tree depth plot
+    plt.savefig(directory + 'noise_comparison_tree_depth.png', bbox_inches='tight')
+    plt.close()
+    
+    # Third plot: Scatter plot comparison across budgets
+    budgets = [1000, 10000, 100000]
+    budget_colors = ["green", "blue", "red"]  
+    markers = ['o', 's']  # circle for pre-opt, square for post-opt
+    
+    plt.figure(figsize=(10, 8))
+    plt.xlabel('Noise Model', fontsize=14)
+    plt.ylabel('Energy (Ha)', fontsize=14)
+    
+    # Increase tick label size
+    plt.xticks(fontsize=12)
+    plt.yticks(fontsize=12)
+    
+    # For each budget
+    for budget_idx, budget_value in enumerate(budgets):
+        pre_opt_values = []
+        post_opt_values = []
+        
+        # For each noise model
+        for noise_idx, evaluation_function in enumerate(evaluation_functions):
+            best_run_idx = get_best_overall(evaluation_function, criteria, branches, budget_value, 
+                                          roll_out_steps, rollout_type, epsilon,
+                                          stop_deterministic, n_iter, ucb)[1]
+            
+            directory, filename = get_filename(evaluation_function=evaluation_function, 
+                                            criteria=criteria, budget=budget_value, 
+                                            iteration=best_run_idx, branches=branches,
+                                            epsilon=epsilon, stop_deterministic=stop_deterministic, 
+                                            rollout_type=rollout_type,
+                                            roll_out_steps=roll_out_steps, 
+                                            image=False, ucb=ucb)
+            
+            try:
+                df = pd.read_pickle(directory + filename + '.pkl')
+                
+                # Get pre-optimization value (from tree depth)
+                pre_opt = min(df['cost'])
+                pre_opt_values.append(pre_opt)
+                
+                # Get post-optimization value (from Adam)
+                min_row = df.loc[df["Adam"].apply(lambda x: x[-1]).idxmin()]
+                post_opt = min_row["Adam"][-1]
+                post_opt_values.append(post_opt)
+                
+            except (FileNotFoundError, KeyError) as e:
+                if verbose:
+                    print(f"Warning: Could not load data for budget {budget_value}, noise model {labels[noise_idx]}")
+                pre_opt_values.append(None)
+                post_opt_values.append(None)
+        
+        # Plot scatter points with slight x-offset for visibility
+        x = np.arange(len(labels))
+        offset = (budget_idx - 1) * 0.2  # Offset points for different budgets
+        
+        # Plot pre-optimization points
+        plt.scatter(x + offset, pre_opt_values, 
+                   marker=markers[0], s=100, 
+                   color=budget_colors[budget_idx], alpha=0.5,
+                   label=f'Pre-opt (Iterations={budget_value})')
+        
+        # Plot post-optimization points
+        plt.scatter(x + offset, post_opt_values, 
+                   marker=markers[1], s=100,
+                   color=budget_colors[budget_idx], alpha=1.0,
+                   label=f'Fine-tuned (Iterations={budget_value})')
+        
+        # Add connecting lines between pre and post optimization points
+        for i in range(len(x)):
+            if pre_opt_values[i] is not None and post_opt_values[i] is not None:
+                plt.plot([x[i] + offset, x[i] + offset], 
+                        [pre_opt_values[i], post_opt_values[i]], 
+                        color=budget_colors[budget_idx], alpha=0.3)
+    
+    # Add benchmark lines
+    if benchmark is not None:
+        plt.axhline(y=benchmark[0], color='gray', linestyle='--',
+                    label=f'SCF ({benchmark[0]:.3f})')
+        plt.axhline(y=benchmark[1], color='black', linestyle='--',
+                    label=f'FCI ({benchmark[1]:.3f})')
+    
+    plt.xticks(x, labels)
+    plt.legend(loc='upper right', fontsize=12)
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    
+    # Save scatter plot
+    plt.savefig(directory + 'noise_comparison_scatter.png', bbox_inches='tight', dpi=300)
+    plt.close()
+    
+    if verbose:
+        print('Noise comparison plots saved in:', directory)
+        print('- noise_comparison_optimization.png')
+        print('- noise_comparison_tree_depth.png')
+        print('- noise_comparison_scatter.png')
 

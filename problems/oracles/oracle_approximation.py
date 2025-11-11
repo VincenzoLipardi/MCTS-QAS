@@ -4,7 +4,10 @@ import numpy as np
 from qiskit import QuantumCircuit, Aer, execute
 import pandas as pd
 from scipy import optimize
-#from qiskit.algorithms.optimizers import ADAM, gradient_descent
+from qiskit.providers.aer.noise import NoiseModel
+from qiskit.providers.aer.noise import pauli_error
+from qiskit import execute, Aer
+
 
 
 def naive(matrix1, matrix2):
@@ -32,15 +35,37 @@ class Fidelity:
 
 
 
-    def reward(self, quantum_circuit):
-        return state_fidelity(Statevector(quantum_circuit), Statevector(self.circuit_bench))
+    def reward(self, quantum_circuit, noise=False):
+        if not noise:
+            return state_fidelity(Statevector(quantum_circuit), Statevector(self.circuit_bench))
+        else:
+            # Create a noise model with bit-flip
+            noise_model = NoiseModel()
+            bit_flip = pauli_error([('X', noise), ('I', 1-noise)])  
+            noise_model.add_all_qubit_quantum_error(bit_flip, ['u1', 'u2', 'u3'])
+            
+            # Get the noisy simulator
+            backend = Aer.get_backend('statevector_simulator')
+            
+            # Execute both circuits with noise
+            result_circuit = execute(quantum_circuit, 
+                                    backend=backend,
+                                    noise_model=noise_model).result()
+            result_bench = execute(self.circuit_bench, 
+                                    backend=backend,
+                                    noise_model=noise_model).result()
+            
+            # Get the noisy statevectors
+            noisy_statevector = result_circuit.get_statevector()
+            noisy_bench_statevector = result_bench.get_statevector()
+            
+            return state_fidelity(noisy_statevector, noisy_bench_statevector)
+
+    def cost(self, quantum_circuit, noise=False):
+        return 1-self.reward(quantum_circuit, noise)
 
 
-    def cost(self, quantum_circuit):
-        return 1-self.reward(quantum_circuit)
-
-
-    def gradient_descent(self, quantum_circuit):
+    def gradient_descent(self, quantum_circuit, noise=False):
         parameters = get_parameters(quantum_circuit)
 
         def costFunc(params):
@@ -61,8 +86,19 @@ class Fidelity:
                     qc.h(qubits[0].index)
                 elif name == "cx":
                     qc.cx(qubits[0].index, qubits[1].index)
-            return 1-state_fidelity(Statevector(qc), Statevector(self.circuit_bench))
-
+            
+            if isinstance(noise, (int, float)):
+                noise_model = NoiseModel()
+                bit_flip = pauli_error([('X', noise), ('I', 1-noise)])
+                noise_model.add_all_qubit_quantum_error(bit_flip, ['u1', 'u2', 'u3'])
+                backend = Aer.get_backend('statevector_simulator')
+                result_circuit = execute(qc, backend=backend, noise_model=noise_model).result()
+                result_bench = execute(self.circuit_bench, backend=backend, noise_model=noise_model).result()
+                noisy_statevector = result_circuit.get_statevector()
+                noisy_bench_statevector = result_bench.get_statevector()
+                return 1 - state_fidelity(noisy_statevector, noisy_bench_statevector)
+            else:
+                return 1 - state_fidelity(Statevector(qc), Statevector(self.circuit_bench))
 
         a = optimize.minimize(costFunc, np.array(parameters))
         parameters = a.jac

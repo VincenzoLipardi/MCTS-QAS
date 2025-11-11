@@ -401,5 +401,4 @@ h2_class_noise_1 = H2(noise_type="bitflip", noise=0.1)
 h2_class_noise_2 = H2(noise_type="bitflip", noise=0.2) 
 h2_class_noise_depolarizing = H2(noise_type="depolarizing", noise=0.0145) 
 h2_class_noise_mixed = H2(noise_type=["bitflip", "depolarizing"], noise=0.01) 
-h2o_full_class = H2O(sparse=False) # no noise
-
+h2o_full_class = H2O(sparse=False)

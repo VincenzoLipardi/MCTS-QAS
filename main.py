@@ -16,7 +16,7 @@ ROLL = [0]
 SIM = False
 GATES = [5, 10, 15, 20, 30]
 ITERATIONS = list(range(10))
-BUDGET = [1000, 10000, 100000]
+BUDGET = [10000]
 
 
 plot_oracle = False
@@ -24,11 +24,11 @@ process_pool = True
 
 
 apply_gradient_descent = True
-PLOT = [False, False, False, True, True, True, True]
+PLOT = [False, False, False, False, False, False, False, True]
 start = "plot"
 
 
-functions = [evf.h2_noise_depolarizing, evf.h2_noise_mixed]
+functions = [evf.h2,evf.h2_noise_01, evf.h2_noise_depolarizing, evf.h2_noise_mixed]
 
 def run(function, budget, rollout_steps, iter, ucb, criteria, branches):
     if function.__name__[0] == 'f':
@@ -87,6 +87,11 @@ def plot(function, roll_out_steps, criteria, ucb, branches):
                 sif.plot_circuit(evaluation_function=function, criteria=criteria, branches=branches, budget=budget,
                                   roll_out_steps=roll_out_steps, rollout_type=ROTYPE, n_iter=N_ITER, epsilon=EPS,
                                   stop_deterministic=STOP, ucb=ucb)
+        if PLOT[7]:
+            # Plot noise comparison for the highest budget
+            sif.plot_noise_comparison(evaluation_functions=functions, criteria=criteria, branches=branches,
+                                  budget=BUDGET[-1], roll_out_steps=roll_out_steps, rollout_type=ROTYPE,
+                                  n_iter=N_ITER, epsilon=EPS, stop_deterministic=STOP, ucb=ucb, verbose=True)
     else:
         raise TypeError("PLOT is a list of boolean values that express which plots the user wants to make")
 """
